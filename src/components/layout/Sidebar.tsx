@@ -1,19 +1,21 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { Kanban, Calendar, DollarSign, Settings, LayoutDashboard, LogOut } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { useAuth } from '@/context/AuthContext'
+import { useAdminIdentity } from '@/lib/use-admin-identity'
+import LogoutConfirmModal from '@/components/ui/LogoutConfirmModal'
 
 const links = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/pipeline', label: 'Pipeline', icon: Kanban },
   { href: '/availability', label: 'Availability', icon: Calendar },
-  { href: '/finance', label: 'Finance', icon: DollarSign },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/finance', label: 'Finance', icon: DollarSign, adminOnly: true },
+  { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ]
 
 const navVariants = {
@@ -27,7 +29,9 @@ const linkVariant = {
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { signOut } = useAuth()
+  const { isAdmin, signOut } = useAdminIdentity()
+  const [confirmingLogout, setConfirmingLogout] = useState(false)
+  const visibleLinks = links.filter((l) => isAdmin || !l.adminOnly)
 
   return (
     <aside className="hidden lg:flex flex-col w-56 min-h-screen glass-sidebar fixed left-0 top-0 bottom-0 z-30">
@@ -53,7 +57,7 @@ export default function Sidebar() {
         initial="hidden"
         animate="show"
       >
-        {links.map(({ href, label, icon: Icon }) => {
+        {visibleLinks.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <motion.div key={href} variants={linkVariant} whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}>
@@ -80,7 +84,7 @@ export default function Sidebar() {
           <p className="text-navy/25 text-[10px]">V1.0</p>
         </div>
         <motion.button
-          onClick={signOut}
+          onClick={() => setConfirmingLogout(true)}
           whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}
           className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm font-medium text-navy/45 hover:text-red-500 hover:bg-red-50 transition-colors"
         >
@@ -88,6 +92,12 @@ export default function Sidebar() {
           Sign Out
         </motion.button>
       </div>
+
+      <LogoutConfirmModal
+        open={confirmingLogout}
+        onClose={() => setConfirmingLogout(false)}
+        onConfirm={signOut}
+      />
     </aside>
   )
 }

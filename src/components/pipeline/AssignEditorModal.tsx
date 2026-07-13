@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import type { Project } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
 import Modal from '@/components/ui/Modal'
+import { syncAssignments } from '@/lib/sync-assignments'
 
 interface Props {
   open: boolean
@@ -24,6 +25,7 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
 
   const projectType = projectTypes.find((t) => t.id === project?.project_type_id)
   const defaultHours = projectType?.default_duration_hours ?? 24
+  const eligibleEditors = editors.filter((e) => (e.roles ?? []).includes('editeur'))
 
   useEffect(() => {
     setCustomHours(defaultHours)
@@ -54,6 +56,7 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
         start_date: startDt.toISOString(),
         end_date: endDt.toISOString(),
       })
+      syncAssignments(project.id, [editorId], [])
       onConfirm()
       onClose()
     } finally {
@@ -78,8 +81,11 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
           <label className="block text-navy/50 text-xs mb-1.5 font-medium">Editor</label>
           <select value={editorId} onChange={(e) => setEditorId(e.target.value)}>
             <option value="">Select an editor…</option>
-            {editors.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+            {eligibleEditors.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
           </select>
+          {eligibleEditors.length === 0 && (
+            <p className="text-navy/35 text-[11px] mt-1">No team members with the Éditeur role yet.</p>
+          )}
         </div>
 
         <div>

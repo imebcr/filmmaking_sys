@@ -8,8 +8,8 @@ import { useApp } from '@/context/AppContext'
 
 const PRESET_COLORS = ['#3B82F6', '#8B5CF6', '#F97316', '#10B981', '#EC4899', '#F59E0B', '#6366F1', '#2AA4E7']
 
-interface FormState { name: string; default_duration_hours: string; color: string }
-const defaultForm: FormState = { name: '', default_duration_hours: '24', color: '#2AA4E7' }
+interface FormState { name: string; default_duration_hours: string; color: string; default_price: string; default_revisions: string }
+const defaultForm: FormState = { name: '', default_duration_hours: '24', color: '#2AA4E7', default_price: '0', default_revisions: '2' }
 
 const Label = ({ children }: { children: React.ReactNode }) => (
   <label className="block text-navy/50 text-xs mb-1 font-medium">{children}</label>
@@ -47,6 +47,14 @@ function TypeForm({ initial, onSave, onCancel }: {
         <div>
           <Label>Default Duration (hours)</Label>
           <input type="number" value={form.default_duration_hours} onChange={(e) => set('default_duration_hours', e.target.value)} min="1" />
+        </div>
+        <div>
+          <Label>Tarif par défaut (DA)</Label>
+          <input type="number" value={form.default_price} onChange={(e) => set('default_price', e.target.value)} min="0" />
+        </div>
+        <div>
+          <Label>Révisions incluses</Label>
+          <input type="number" value={form.default_revisions} onChange={(e) => set('default_revisions', e.target.value)} min="0" />
         </div>
         <div>
           <Label>Badge Color</Label>
@@ -112,6 +120,8 @@ export default function ProjectTypes() {
       name: data.name.trim(),
       default_duration_hours: parseInt(data.default_duration_hours) || 24,
       color: data.color,
+      default_price: parseInt(data.default_price) || 0,
+      default_revisions: parseInt(data.default_revisions) || 0,
     })
     setShowNew(false)
   }
@@ -121,6 +131,8 @@ export default function ProjectTypes() {
       name: data.name.trim(),
       default_duration_hours: parseInt(data.default_duration_hours) || 24,
       color: data.color,
+      default_price: parseInt(data.default_price) || 0,
+      default_revisions: parseInt(data.default_revisions) || 0,
     })
     setEditingId(null)
   }
@@ -158,7 +170,13 @@ export default function ProjectTypes() {
             >
               {editingId === type.id ? (
                 <TypeForm
-                  initial={{ name: type.name, default_duration_hours: type.default_duration_hours.toString(), color: type.color }}
+                  initial={{
+                    name: type.name,
+                    default_duration_hours: type.default_duration_hours.toString(),
+                    color: type.color,
+                    default_price: (type.default_price ?? 0).toString(),
+                    default_revisions: (type.default_revisions ?? 0).toString(),
+                  }}
                   onSave={(data) => handleUpdate(type.id, data)}
                   onCancel={() => setEditingId(null)}
                 />
@@ -175,6 +193,9 @@ export default function ProjectTypes() {
                         {type.default_duration_hours}h default
                       </span>
                     </div>
+                    <p className="text-navy/45 text-xs mt-0.5">
+                      {(type.default_price ?? 0).toLocaleString('fr-DZ')} DA · {type.default_revisions ?? 0} révision(s) incluse(s)
+                    </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <motion.button

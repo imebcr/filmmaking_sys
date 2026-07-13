@@ -1,12 +1,23 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import AppLayout from '@/components/layout/AppLayout'
 import FinanceTable from '@/components/finance/FinanceTable'
 import FinanceCards from '@/components/finance/FinanceCards'
 import { useApp } from '@/context/AppContext'
+import { useAdminIdentity } from '@/lib/use-admin-identity'
 
 export default function FinancePage() {
   const { loading, error, projects } = useApp()
+  const { isAdmin, loading: identityLoading } = useAdminIdentity()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!identityLoading && !isAdmin) router.replace('/dashboard')
+  }, [identityLoading, isAdmin, router])
+
+  if (!identityLoading && !isAdmin) return null
 
   const totalPipeline = projects.reduce((s, p) => s + (p.deal_price ?? 0), 0)
   const totalCosts = projects.reduce((s, p) => {

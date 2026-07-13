@@ -15,19 +15,42 @@ import type {
   ProjectType,
   EditorAssignment,
   Stakeholder,
+  Contact,
+  StakeholderRole,
 } from '@/lib/types'
+
+export interface BatchVideoInput {
+  project_type_id: string | null
+  deadline: string | null
+  deal_price: number
+}
+
+export interface ProjectBatchInput {
+  clientName: string
+  clientPhone: string
+  clientEmail: string
+  clientCompany: string
+  commercialId: string | null
+  description: string
+  stageRequirements: Record<string, string>
+  revisionsAllowed: number
+  videos: BatchVideoInput[]
+  sharedStakeholders: Array<{ role: StakeholderRole; editor_id: string; name: string }>
+}
 
 interface AppContextType {
   projects: Project[]
   editors: Editor[]
   projectTypes: ProjectType[]
   editorAssignments: EditorAssignment[]
+  contacts: Contact[]
   loading: boolean
   error: string | null
   refetch: () => Promise<void>
 
   createProject: (data: Partial<Project>) => Promise<Project | null>
-  updateProject: (id: string, data: Partial<Project>) => Promise<void>
+  createProjectBatch: (input: ProjectBatchInput) => Promise<Project[] | null>
+  updateProject: (id: string, data: Partial<Project>) => Promise<string | null>
   deleteProject: (id: string) => Promise<void>
   duplicateProject: (id: string) => Promise<void>
 
@@ -44,6 +67,10 @@ interface AppContextType {
   createAssignment: (data: Omit<EditorAssignment, 'id' | 'created_at' | 'editor' | 'project'>) => Promise<EditorAssignment | null>
   updateAssignment: (id: string, data: Partial<EditorAssignment>) => Promise<void>
   deleteAssignment: (id: string) => Promise<void>
+
+  createContact: (data: Partial<Contact>) => Promise<Contact | null>
+  updateContact: (id: string, data: Partial<Contact>) => Promise<void>
+  deleteContact: (id: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextType | null>(null)
@@ -53,15 +80,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [editors, setEditors] = useState<Editor[]>([])
   const [projectTypes, setProjectTypes] = useState<ProjectType[]>([])
   const [editorAssignments, setEditorAssignments] = useState<EditorAssignment[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const refetch = useCallback(async () => {
     try {
-      const [projectsRes, editorsRes, typesRes, assignmentsRes] = await Promise.all([
+      const [projectsRes, editorsRes, typesRes, assignmentsRes, contactsRes] = await Promise.all([
         supabase
           .from('projects')
-          .select('*, project_type:project_types(*), stakeholders:project_stakeholders(*), editor_assignments(*, editor:editors(*))')
+          .select('*, project_type:project_types(*), stakeholders:project_stakeholders(*), editor_assignments(*, editor:editors(*)), deliverables(*, submitted_by_member:editors(*))')
           .order('created_at', { ascending: false }),
         supabase.from('editors').select('*').eq('is_active', true).order('full_name'),
         supabase.from('project_types').select('*').order('name'),
@@ -69,21 +97,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
           .from('editor_assignments')
           .select('*, editor:editors(*), project:projects(*, project_type:project_types(*))')
           .order('start_date'),
+        supabase.from('contacts').select('*').order('full_name'),
       ])
 
       if (projectsRes.error) throw projectsRes.error
       if (editorsRes.error) throw editorsRes.error
       if (typesRes.error) throw typesRes.error
       if (assignmentsRes.error) throw assignmentsRes.error
+      if (contactsRes.error) throw contactsRes.error
 
       setProjects((projectsRes.data as Project[]) ?? [])
       setEditors((editorsRes.data as Editor[]) ?? [])
       setProjectTypes((typesRes.data as ProjectType[]) ?? [])
       setEditorAssignments((assignmentsRes.data as EditorAssignment[]) ?? [])
+      setContacts((contactsRes.data as Contact[]) ?? [])
       setError(null)
     } catch (err) {
       console.error(err)
-      setError('Failed to load data. Check your Supabase credentials.')
+      const detail = err && typeof err === 'object' && 'message' in err ? (err as { message: string }).message : String(err)
+      setError(`Failed to load data: ${detail}`)
     }
   }, [])
 
@@ -101,6 +133,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_types' }, () => refetch())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'project_stakeholders' }, () => refetch())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'editor_assignments' }, () => refetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => refetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliverables' }, () => refetch())
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -118,7 +152,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return row as Project
   }
 
-  const updateProject = async (id: string, data: Partial<Project>) => {
+  // Creates one client_orders row + N project rows (one per requested video), all sharing
+  // the same client contact info, commercial, and initial team assignment.
+  const createProjectBatch = async (input: ProjectBatchInput): Promise<Project[] | null> => {
+    const { data: order, error: orderError } = await supabase
+      .from('client_orders')
+      .insert({
+        client_name: input.clientName,
+        client_phone: input.clientPhone,
+        client_email: input.clientEmail,
+        client_company: input.clientCompany,
+        commercial_id: input.commercialId,
+        description: input.description,
+      })
+      .select()
+      .single()
+    if (orderError || !order) { console.error(orderError); return null }
+
+    const projectRows = input.videos.map((v) => ({
+      client_name: input.clientName,
+      description: input.description,
+      stage_requirements: input.stageRequirements,
+      client_phone: input.clientPhone,
+      client_email: input.clientEmail,
+      client_company: input.clientCompany,
+      commercial_id: input.commercialId,
+      order_id: order.id,
+      project_type_id: v.project_type_id,
+      deal_price: v.deal_price,
+      deadline: v.deadline,
+      revisions_allowed: input.revisionsAllowed,
+      stage: 'incoming',
+    }))
+    const { data: createdProjects, error: projectsError } = await supabase
+      .from('projects')
+      .insert(projectRows)
+      .select()
+    if (projectsError || !createdProjects) { console.error(projectsError); return null }
+
+    if (input.sharedStakeholders.length > 0) {
+      const stakeholderRows = createdProjects.flatMap((p) =>
+        input.sharedStakeholders.map((s) => ({ project_id: p.id, role: s.role, name: s.name, editor_id: s.editor_id, cost: 0 })),
+      )
+      const { error: stakeholderError } = await supabase.from('project_stakeholders').insert(stakeholderRows)
+      if (stakeholderError) console.error(stakeholderError)
+    }
+
+    await refetch()
+    return createdProjects as Project[]
+  }
+
+  const updateProject = async (id: string, data: Partial<Project>): Promise<string | null> => {
     const { error } = await supabase.from('projects').update(data).eq('id', id)
     if (error) console.error(error)
 
@@ -133,6 +217,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     await refetch()
+    return error?.message ?? null
   }
 
   const deleteProject = async (id: string) => {
@@ -282,16 +367,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await refetch()
   }
 
+  // ── Contact mutations ────────────────────────────────────────
+  const createContact = async (data: Partial<Contact>): Promise<Contact | null> => {
+    const { data: row, error } = await supabase
+      .from('contacts')
+      .insert({ type: 'FIGURANT', full_name: 'New Contact', ...data })
+      .select()
+      .single()
+    if (error) { console.error(error); return null }
+    await refetch()
+    return row as Contact
+  }
+
+  const updateContact = async (id: string, data: Partial<Contact>) => {
+    const { error } = await supabase.from('contacts').update(data).eq('id', id)
+    if (error) console.error(error)
+    await refetch()
+  }
+
+  const deleteContact = async (id: string) => {
+    const { error } = await supabase.from('contacts').delete().eq('id', id)
+    if (error) console.error(error)
+    await refetch()
+  }
+
   return (
     <AppContext.Provider
       value={{
-        projects, editors, projectTypes, editorAssignments,
+        projects, editors, projectTypes, editorAssignments, contacts,
         loading, error, refetch,
-        createProject, updateProject, deleteProject, duplicateProject,
+        createProject, createProjectBatch, updateProject, deleteProject, duplicateProject,
         createEditor, updateEditor, deleteEditor,
         createProjectType, updateProjectType, deleteProjectType,
         saveStakeholders,
         createAssignment, updateAssignment, deleteAssignment,
+        createContact, updateContact, deleteContact,
       }}
     >
       {children}

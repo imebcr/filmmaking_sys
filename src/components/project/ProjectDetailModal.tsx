@@ -3,16 +3,26 @@
 import { useState, useEffect } from 'react'
 import { Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import type { Project, Stakeholder, StakeholderRole, ProjectStage } from '@/lib/types'
-import { STAGES, STAGE_LABELS, STAKEHOLDER_LABELS } from '@/lib/types'
+import type { Project, Stakeholder, StakeholderRole, ProjectStage, TeamMemberRole } from '@/lib/types'
+import { STAGES, STAGE_LABELS, STAKEHOLDER_LABELS, DELIVERABLE_STAGES, ROLE_TO_STAKEHOLDER, TEAM_MEMBER_ROLES } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
+import DeliverablePanel from '@/components/deliverables/DeliverablePanel'
 import { formatDZD, calcMargin, marginBg } from '@/lib/utils'
+import { syncAssignments } from '@/lib/sync-assignments'
+
+// Which team-member role (if any) can fill a given stakeholder role via a linked account
+const STAKEHOLDER_TO_MEMBER_ROLE: Partial<Record<StakeholderRole, TeamMemberRole>> = Object.fromEntries(
+  TEAM_MEMBER_ROLES
+    .filter((r) => ROLE_TO_STAKEHOLDER[r])
+    .map((r) => [ROLE_TO_STAKEHOLDER[r] as StakeholderRole, r]),
+)
 
 interface Props {
   project: Project
   onClose: () => void
+  onSwitchProject?: (id: string) => void
 }
 
 type StakeholderDraft = {
@@ -41,8 +51,9 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   <h3 className="text-xs font-bold text-navy/40 uppercase tracking-wider mb-3">{children}</h3>
 )
 
-export default function ProjectDetailModal({ project, onClose }: Props) {
-  const { projectTypes, editors, updateProject, deleteProject, saveStakeholders } = useApp()
+export default function ProjectDetailModal({ project, onClose, onSwitchProject }: Props) {
+  const { projects, projectTypes, editors, updateProject, deleteProject, saveStakeholders } = useApp()
+  const orderSiblings = project.order_id ? projects.filter((p) => p.id !== project.id && p.order_id === project.order_id) : []
 
   const [clientName, setClientName] = useState(project.client_name)
   const [projectTypeId, setProjectTypeId] = useState(project.project_type_id ?? '')
@@ -50,6 +61,13 @@ export default function ProjectDetailModal({ project, onClose }: Props) {
   const [deadline, setDeadline] = useState(project.deadline?.slice(0, 10) ?? '')
   const [stage, setStage] = useState<ProjectStage>(project.stage)
   const [notes, setNotes] = useState(project.notes ?? '')
+  const [description, setDescription] = useState(project.description ?? '')
+  const [clientPhone, setClientPhone] = useState(project.client_phone ?? '')
+  const [clientEmail, setClientEmail] = useState(project.client_email ?? '')
+  const [clientCompany, setClientCompany] = useState(project.client_company ?? '')
+  const [commercialId, setCommercialId] = useState(project.commercial_id ?? '')
+  const [stageRequirements, setStageRequirements] = useState<Record<string, string>>(project.stage_requirements ?? {})
+  const [revisionsAllowed, setRevisionsAllowed] = useState((project.revisions_allowed ?? 0).toString())
   const [drafts, setDrafts] = useState<StakeholderDraft[]>(() =>
     ROLES.map((role) => {
       const existing = (project.stakeholders ?? []).find((s) => s.role === role)
@@ -60,6 +78,9 @@ export default function ProjectDetailModal({ project, onClose }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // project.commercial_id is a FK into editors, not contacts — must be a team member with the Commercial role.
+  const commercials = editors.filter((e) => (e.roles ?? []).includes('commercial'))
+
   useEffect(() => {
     setClientName(project.client_name)
     setProjectTypeId(project.project_type_id ?? '')
@@ -67,6 +88,13 @@ export default function ProjectDetailModal({ project, onClose }: Props) {
     setDeadline(project.deadline?.slice(0, 10) ?? '')
     setStage(project.stage)
     setNotes(project.notes ?? '')
+    setDescription(project.description ?? '')
+    setClientPhone(project.client_phone ?? '')
+    setClientEmail(project.client_email ?? '')
+    setClientCompany(project.client_company ?? '')
+    setCommercialId(project.commercial_id ?? '')
+    setStageRequirements(project.stage_requirements ?? {})
+    setRevisionsAllowed((project.revisions_allowed ?? 0).toString())
     setDrafts(
       ROLES.map((role) => {
         const existing = (project.stakeholders ?? []).find((s) => s.role === role)
@@ -86,20 +114,32 @@ export default function ProjectDetailModal({ project, onClose }: Props) {
   const handleSave = async () => {
     setSaving(true)
     setSaveError(null)
-    await updateProject(project.id, {
+    const projectUpdateError = await updateProject(project.id, {
       client_name: clientName.trim() || project.client_name,
       project_type_id: projectTypeId || null,
       deal_price: price,
       deadline: deadline || null,
       stage,
       notes,
+      description,
+      client_phone: clientPhone,
+      client_email: clientEmail,
+      client_company: clientCompany,
+      commercial_id: commercialId || null,
+      stage_requirements: stageRequirements,
+      revisions_allowed: parseInt(revisionsAllowed) || 0,
     })
+    if (projectUpdateError) {
+      setSaving(false)
+      setSaveError(`Failed to save project: ${projectUpdateError}`)
+      return
+    }
     const stakeholdersToSave = drafts
       .filter((d) => d.name.trim() || parseFloat(d.cost) > 0)
       .map((d) => ({
         role: d.role,
         name: d.name.trim(),
-        editor_id: d.role === 'editor' ? (d.editor_id || null) : null,
+        editor_id: STAKEHOLDER_TO_MEMBER_ROLE[d.role] ? (d.editor_id || null) : null,
         cost: parseFloat(d.cost) || 0,
       }))
     const err = await saveStakeholders(project.id, stakeholdersToSave)
@@ -108,6 +148,13 @@ export default function ProjectDetailModal({ project, onClose }: Props) {
       setSaveError('Failed to save stakeholders. Run the SQL migration in Supabase to add the scriptwriter role.')
       return
     }
+
+    const previousMemberIds = new Set((project.stakeholders ?? []).map((s) => s.editor_id).filter(Boolean) as string[])
+    const newMemberIds = new Set(stakeholdersToSave.map((s) => s.editor_id).filter(Boolean) as string[])
+    const added = [...newMemberIds].filter((id) => !previousMemberIds.has(id))
+    const removed = [...previousMemberIds].filter((id) => !newMemberIds.has(id))
+    syncAssignments(project.id, added, removed)
+
     onClose()
   }
 
@@ -156,12 +203,93 @@ export default function ProjectDetailModal({ project, onClose }: Props) {
               <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
             </div>
 
+            <div>
+              <Label>Révisions autorisées</Label>
+              <input type="number" value={revisionsAllowed} onChange={(e) => setRevisionsAllowed(e.target.value)} min="0" />
+            </div>
+
+            <div>
+              <Label>Commercial responsable</Label>
+              <select value={commercialId} onChange={(e) => setCommercialId(e.target.value)}>
+                <option value="">Aucun</option>
+                {commercials.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <Label>Description générale</Label>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="resize-none" />
+            </div>
+
             <div className="sm:col-span-2">
               <Label>Notes</Label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="resize-none" />
             </div>
           </div>
         </section>
+
+        {/* Sibling videos from the same client order */}
+        {orderSiblings.length > 0 && (
+          <section>
+            <SectionTitle>Autres vidéos de cette commande ({orderSiblings.length})</SectionTitle>
+            <div className="space-y-1.5">
+              {orderSiblings.map((sibling) => (
+                <button
+                  key={sibling.id}
+                  onClick={() => onSwitchProject?.(sibling.id)}
+                  disabled={!onSwitchProject}
+                  className="w-full flex items-center justify-between glass-sm rounded-xl px-3 py-2 text-left hover:bg-white/50 transition-colors disabled:cursor-default disabled:hover:bg-transparent"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {sibling.project_type && <Badge projectType={sibling.project_type} small />}
+                    <span className="text-navy/70 text-xs truncate">{STAGE_LABELS[sibling.stage]}</span>
+                  </div>
+                  {sibling.deadline && <span className="text-navy/40 text-[11px] shrink-0">{sibling.deadline.slice(0, 10)}</span>}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Client contact */}
+        <section>
+          <SectionTitle>Coordonnées client</SectionTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label>Téléphone</Label>
+              <input type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} />
+            </div>
+            <div>
+              <Label>E-mail</Label>
+              <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} />
+            </div>
+            <div>
+              <Label>Entreprise / Adresse</Label>
+              <input type="text" value={clientCompany} onChange={(e) => setClientCompany(e.target.value)} />
+            </div>
+          </div>
+        </section>
+
+        {/* Stage requirements */}
+        <section>
+          <SectionTitle>Attentes par étape</SectionTitle>
+          <div className="space-y-3">
+            {DELIVERABLE_STAGES.map((s) => (
+              <div key={s}>
+                <Label>{STAGE_LABELS[s]}</Label>
+                <textarea
+                  value={stageRequirements[s] ?? ''}
+                  onChange={(e) => setStageRequirements((sr) => ({ ...sr, [s]: e.target.value }))}
+                  rows={2}
+                  className="resize-none"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Deliverable validation */}
+        <DeliverablePanel project={project} />
 
         {/* Stakeholders */}
         <section>
@@ -171,7 +299,7 @@ export default function ProjectDetailModal({ project, onClose }: Props) {
               <div key={draft.role} className="glass-sm rounded-xl p-3">
                 <p className="text-navy font-semibold text-xs mb-2">{STAKEHOLDER_LABELS[draft.role]}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {draft.role === 'editor' ? (
+                  {STAKEHOLDER_TO_MEMBER_ROLE[draft.role] ? (
                     <select
                       value={draft.editor_id ?? ''}
                       onChange={(e) => {
@@ -181,8 +309,10 @@ export default function ProjectDetailModal({ project, onClose }: Props) {
                       }}
                       className="text-xs"
                     >
-                      <option value="">Select editor…</option>
-                      {editors.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
+                      <option value="">Sélectionner un membre…</option>
+                      {editors
+                        .filter((ed) => (ed.roles ?? []).includes(STAKEHOLDER_TO_MEMBER_ROLE[draft.role]!))
+                        .map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
                     </select>
                   ) : (
                     <input

@@ -13,8 +13,11 @@ import { useApp } from '@/context/AppContext'
 import KanbanColumn from './KanbanColumn'
 import ProjectCard from './ProjectCard'
 import AssignEditorModal from './AssignEditorModal'
+import AssignStageModal from './AssignStageModal'
 import ProjectDetailModal from '@/components/project/ProjectDetailModal'
 import NewProjectModal from './NewProjectModal'
+
+const STAGE_ASSIGN_MODAL: ProjectStage[] = ['pre-production', 'shooting']
 
 export default function KanbanBoard() {
   const { projects, projectTypes, updateProject } = useApp()
@@ -22,6 +25,7 @@ export default function KanbanBoard() {
   const [detailProject, setDetailProject] = useState<Project | null>(null)
   const [pendingProject, setPendingProject] = useState<Project | null>(null)
   const [showAssign, setShowAssign] = useState(false)
+  const [stageAssignTarget, setStageAssignTarget] = useState<ProjectStage | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [search, setSearch] = useState('')
   const [filterTypeId, setFilterTypeId] = useState('')
@@ -42,9 +46,12 @@ export default function KanbanBoard() {
     const newStage = over.id as ProjectStage
     const project = projects.find((p) => p.id === active.id)
     if (!project || project.stage === newStage) return
-    if (newStage === 'editing' && project.stage !== 'editing') {
+    if (newStage === 'editing') {
       setPendingProject(project)
       setShowAssign(true)
+    } else if (STAGE_ASSIGN_MODAL.includes(newStage)) {
+      setPendingProject(project)
+      setStageAssignTarget(newStage)
     } else {
       updateProject(project.id, { stage: newStage })
     }
@@ -119,10 +126,22 @@ export default function KanbanBoard() {
         onConfirm={() => setPendingProject(null)}
       />
 
+      <AssignStageModal
+        open={stageAssignTarget !== null}
+        project={pendingProject}
+        targetStage={stageAssignTarget}
+        onClose={() => { setStageAssignTarget(null); setPendingProject(null) }}
+        onConfirm={() => setPendingProject(null)}
+      />
+
       {detailProject && (
         <ProjectDetailModal
           project={projects.find((p) => p.id === detailProject.id) ?? detailProject}
           onClose={() => setDetailProject(null)}
+          onSwitchProject={(id) => {
+            const target = projects.find((p) => p.id === id)
+            if (target) setDetailProject(target)
+          }}
         />
       )}
 

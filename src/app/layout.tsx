@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/context/AuthContext'
 import { AppProvider } from '@/context/AppContext'
+import SessionProviderWrapper from '@/components/providers/SessionProviderWrapper'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -32,9 +33,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#0a60ad" />
       </head>
       <body>
-        <AuthProvider>
-          <AppProvider>{children}</AppProvider>
-        </AuthProvider>
+        <SessionProviderWrapper>
+          <AuthProvider>
+            <AppProvider>{children}</AppProvider>
+          </AuthProvider>
+        </SessionProviderWrapper>
       </body>
     </html>
   )

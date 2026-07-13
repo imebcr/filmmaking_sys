@@ -6,7 +6,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Calendar, User, Trash2, X, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { Project, ProjectStage } from '@/lib/types'
-import { STAGES, STAGE_LABELS } from '@/lib/types'
+import { STAGES, STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
 import Badge from '@/components/ui/Badge'
 import { formatDZD, formatDate, calcMargin, marginDot } from '@/lib/utils'
 import { useApp } from '@/context/AppContext'
@@ -18,9 +18,12 @@ interface Props {
 }
 
 export default function ProjectCard({ project, onClick, isDragOverlay }: Props) {
-  const { deleteProject, duplicateProject, updateProject } = useApp()
+  const { projects, deleteProject, duplicateProject, updateProject } = useApp()
   const [confirming, setConfirming] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
+
+  const orderSiblings = project.order_id ? projects.filter((p) => p.order_id === project.order_id) : []
+  const orderIndex = orderSiblings.findIndex((p) => p.id === project.id)
 
   const stageIndex = STAGES.indexOf(project.stage)
   const prevStage = stageIndex > 0 ? STAGES[stageIndex - 1] : null
@@ -45,6 +48,9 @@ export default function ProjectCard({ project, onClick, isDragOverlay }: Props) 
   const totalCost = stakeholders.reduce((s, sh) => s + (sh.cost || 0), 0)
   const { marginPct } = calcMargin(project.deal_price || 0, totalCost)
   const editor = (project.editor_assignments ?? [])[0]?.editor
+
+  const isActiveStage = DELIVERABLE_STAGES.includes(project.stage)
+  const pendingDeliverable = (project.deliverables ?? []).some((d) => d.stage === project.stage && d.status === 'submitted')
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -80,7 +86,9 @@ export default function ProjectCard({ project, onClick, isDragOverlay }: Props) 
         whileTap={!confirming ? { scale: 0.98 } : undefined}
         transition={{ type: 'spring' as const, stiffness: 500, damping: 28 }}
         onClick={(e) => { if (!confirming) { e.stopPropagation(); onClick() } }}
-        className="glass-sm rounded-2xl p-3.5 mb-2.5 select-none cursor-grab active:cursor-grabbing relative group"
+        className={`glass-sm rounded-2xl p-3.5 mb-2.5 select-none cursor-grab active:cursor-grabbing relative group ${
+          isActiveStage ? 'border-l-4 border-l-brand' : ''
+        }`}
       >
         {/* Confirm delete overlay */}
         {confirming && (
@@ -147,8 +155,23 @@ export default function ProjectCard({ project, onClick, isDragOverlay }: Props) 
         </div>
 
         {/* Badge */}
-        <div className="mb-2">
+        <div className="mb-2 flex items-center gap-1.5 flex-wrap">
           <Badge projectType={project.project_type} small />
+          {orderSiblings.length > 1 && (
+            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-navy/5 text-navy/50 border border-navy/10" title="Fait partie d'une commande à plusieurs vidéos">
+              Vidéo {orderIndex + 1}/{orderSiblings.length}
+            </span>
+          )}
+          {isActiveStage && (
+            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-brand/10 text-brand border border-brand/25">
+              En cours
+            </span>
+          )}
+          {pendingDeliverable && (
+            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 animate-pulse">
+              À valider
+            </span>
+          )}
         </div>
 
         {/* Editor */}

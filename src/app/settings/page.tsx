@@ -1,17 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import AppLayout from '@/components/layout/AppLayout'
 import EditorRoster from '@/components/settings/EditorRoster'
 import ProjectTypes from '@/components/settings/ProjectTypes'
+import ContactsPanel from '@/components/settings/ContactsPanel'
 import { useApp } from '@/context/AppContext'
+import { useAdminIdentity } from '@/lib/use-admin-identity'
 
-type Tab = 'editors' | 'types'
+type Tab = 'editors' | 'contacts' | 'types'
+
+const TAB_LABELS: Record<Tab, string> = {
+  editors: 'Team Members',
+  contacts: 'Contacts',
+  types: 'Project Types',
+}
 
 export default function SettingsPage() {
   const { loading } = useApp()
   const [tab, setTab] = useState<Tab>('editors')
+  const { isAdmin, loading: identityLoading } = useAdminIdentity()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!identityLoading && !isAdmin) router.replace('/dashboard')
+  }, [identityLoading, isAdmin, router])
+
+  if (!identityLoading && !isAdmin) return null
 
   return (
     <AppLayout>
@@ -24,7 +41,7 @@ export default function SettingsPage() {
         <div className="p-6">
           {/* Tabs */}
           <div className="flex gap-1 mb-6 glass rounded-2xl p-1.5 w-fit">
-            {(['editors', 'types'] as Tab[]).map((t) => (
+            {(['editors', 'contacts', 'types'] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -38,7 +55,7 @@ export default function SettingsPage() {
                   />
                 )}
                 <span className={`relative z-10 ${tab === t ? 'text-white' : 'text-navy/55 hover:text-navy'}`}>
-                  {t === 'editors' ? 'Editors' : 'Project Types'}
+                  {TAB_LABELS[t]}
                 </span>
               </button>
             ))}
@@ -48,7 +65,9 @@ export default function SettingsPage() {
             <div className="flex items-center justify-center py-24 text-navy/35 text-sm">Loading…</div>
           ) : (
             <div className="max-w-3xl">
-              {tab === 'editors' ? <EditorRoster /> : <ProjectTypes />}
+              {tab === 'editors' && <EditorRoster />}
+              {tab === 'contacts' && <ContactsPanel />}
+              {tab === 'types' && <ProjectTypes />}
             </div>
           )}
         </div>

@@ -5,18 +5,18 @@ import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
-import { useAuth } from '@/context/AuthContext'
+import { useAdminIdentity } from '@/lib/use-admin-identity'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, authLoading } = useAuth()
+  const { authenticated, loading } = useAdminIdentity()
 
   useEffect(() => {
-    if (!authLoading && !user) router.replace('/login')
-  }, [user, authLoading, router])
+    if (!loading && !authenticated) router.replace('/login')
+  }, [authenticated, loading, router])
 
-  if (authLoading || !user) {
+  if (loading || !authenticated) {
     return (
       <div
         className="min-h-screen flex items-center justify-center"

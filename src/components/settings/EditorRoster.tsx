@@ -1,20 +1,39 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, Check, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Send, KeyRound, Ban, PlayCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { EditorSpecialty } from '@/lib/types'
-import { SPECIALTY_LABELS } from '@/lib/types'
+import type { EditorSpecialty, TeamMemberRole, ContractType, TeamMemberAccountStatus } from '@/lib/types'
+import { SPECIALTY_LABELS, TEAM_MEMBER_ROLES, TEAM_MEMBER_ROLE_LABELS } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
+import { adminFetch } from '@/lib/admin-fetch'
 
 interface EditorFormState {
   full_name: string
+  roles: TeamMemberRole[]
   specialty: EditorSpecialty
-  contact_info: string
+  contract_type: ContractType
+  level: string
+  email: string
+  phone: string
+  default_rate: string
   notes: string
 }
 
-const defaultForm: EditorFormState = { full_name: '', specialty: 'both', contact_info: '', notes: '' }
+const defaultForm: EditorFormState = {
+  full_name: '', roles: [], specialty: 'both', contract_type: 'freelance',
+  level: '', email: '', phone: '', default_rate: '0', notes: '',
+}
+
+const STATUS_LABELS: Record<TeamMemberAccountStatus, string> = {
+  pending: 'Non invité', invited: 'Invité (en attente)', active: 'Actif', suspended: 'Suspendu',
+}
+const STATUS_STYLES: Record<TeamMemberAccountStatus, string> = {
+  pending: 'bg-gray-100 text-gray-500 border-gray-200',
+  invited: 'bg-amber-50 text-amber-600 border-amber-200',
+  active: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+  suspended: 'bg-red-50 text-red-600 border-red-200',
+}
 
 const Label = ({ children }: { children: React.ReactNode }) => (
   <label className="block text-navy/50 text-xs mb-1 font-medium">{children}</label>
@@ -27,7 +46,11 @@ function EditorForm({ initial, onSave, onCancel }: {
 }) {
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
-  const set = (key: keyof EditorFormState, value: string) => setForm((f) => ({ ...f, [key]: value }))
+  const set = <K extends keyof EditorFormState>(key: K, value: EditorFormState[K]) => setForm((f) => ({ ...f, [key]: value }))
+
+  const toggleRole = (role: TeamMemberRole) => {
+    set('roles', form.roles.includes(role) ? form.roles.filter((r) => r !== role) : [...form.roles, role])
+  }
 
   const handleSave = async () => {
     if (!form.full_name.trim()) return
@@ -46,30 +69,70 @@ function EditorForm({ initial, onSave, onCancel }: {
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <Label>Full Name *</Label>
-          <input type="text" value={form.full_name} onChange={(e) => set('full_name', e.target.value)} placeholder="Editor name" />
+          <Label>Nom complet *</Label>
+          <input type="text" value={form.full_name} onChange={(e) => set('full_name', e.target.value)} placeholder="Nom du membre" />
         </div>
         <div>
-          <Label>Specialty</Label>
+          <Label>Type de contrat</Label>
+          <select value={form.contract_type} onChange={(e) => set('contract_type', e.target.value as ContractType)}>
+            <option value="freelance">Freelance</option>
+            <option value="staff">Staff</option>
+          </select>
+        </div>
+        <div>
+          <Label>Spécialité (montage)</Label>
           <select value={form.specialty} onChange={(e) => set('specialty', e.target.value as EditorSpecialty)}>
             {Object.entries(SPECIALTY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
         <div>
-          <Label>Contact Info</Label>
-          <input type="text" value={form.contact_info} onChange={(e) => set('contact_info', e.target.value)} placeholder="Phone or email" />
+          <Label>Niveau</Label>
+          <input type="text" value={form.level} onChange={(e) => set('level', e.target.value)} placeholder="Junior, Senior…" />
+        </div>
+        <div>
+          <Label>E-mail</Label>
+          <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="membre@exemple.com" />
+        </div>
+        <div>
+          <Label>Téléphone</Label>
+          <input type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+213…" />
+        </div>
+        <div>
+          <Label>Tarif indicatif (DA)</Label>
+          <input type="number" value={form.default_rate} onChange={(e) => set('default_rate', e.target.value)} min="0" />
         </div>
         <div>
           <Label>Notes</Label>
-          <input type="text" value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="e.g. part-time, senior" />
+          <input type="text" value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Remarques" />
         </div>
       </div>
+
+      <div>
+        <Label>Rôles</Label>
+        <div className="flex flex-wrap gap-2">
+          {TEAM_MEMBER_ROLES.map((role) => (
+            <button
+              key={role}
+              type="button"
+              onClick={() => toggleRole(role)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                form.roles.includes(role)
+                  ? 'bg-brand text-white border-brand shadow-sm shadow-brand/25'
+                  : 'border-silver text-navy/55 hover:text-navy hover:bg-white/50'
+              }`}
+            >
+              {TEAM_MEMBER_ROLE_LABELS[role]}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex gap-2 pt-1">
         <button
           onClick={onCancel}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-silver text-navy/50 hover:text-navy text-xs transition-colors"
         >
-          <X size={12} /> Cancel
+          <X size={12} /> Annuler
         </button>
         <motion.button
           onClick={handleSave}
@@ -77,7 +140,7 @@ function EditorForm({ initial, onSave, onCancel }: {
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand hover:bg-ocean text-white text-xs font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
         >
-          <Check size={12} /> {saving ? 'Saving…' : 'Save'}
+          <Check size={12} /> {saving ? 'Enregistrement…' : 'Enregistrer'}
         </motion.button>
       </div>
     </motion.div>
@@ -89,14 +152,41 @@ export default function EditorRoster() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [roleFilter, setRoleFilter] = useState<TeamMemberRole | ''>('')
+  const [actionState, setActionState] = useState<Record<string, string>>({})
+
+  const setActionMsg = (id: string, msg: string) => {
+    setActionState((s) => ({ ...s, [id]: msg }))
+    setTimeout(() => setActionState((s) => { const next = { ...s }; delete next[id]; return next }), 3000)
+  }
 
   const handleCreate = async (data: EditorFormState) => {
-    await createEditor(data)
+    await createEditor({
+      full_name: data.full_name,
+      roles: data.roles,
+      specialty: data.specialty,
+      contract_type: data.contract_type,
+      level: data.level,
+      email: data.email || null,
+      phone: data.phone,
+      default_rate: parseFloat(data.default_rate) || 0,
+      notes: data.notes,
+    })
     setShowNew(false)
   }
 
   const handleUpdate = async (id: string, data: EditorFormState) => {
-    await updateEditor(id, data)
+    await updateEditor(id, {
+      full_name: data.full_name,
+      roles: data.roles,
+      specialty: data.specialty,
+      contract_type: data.contract_type,
+      level: data.level,
+      email: data.email || null,
+      phone: data.phone,
+      default_rate: parseFloat(data.default_rate) || 0,
+      notes: data.notes,
+    })
     setEditingId(null)
   }
 
@@ -105,17 +195,46 @@ export default function EditorRoster() {
     setConfirmDelete(null)
   }
 
+  const handleInvite = async (id: string) => {
+    const res = await adminFetch(`/api/admin/team-members/${id}/invite`, { method: 'POST' })
+    const result = await res.json().catch(() => ({}))
+    setActionMsg(id, res.ok ? 'Invitation envoyée' : (result?.error ?? 'Échec de l’invitation'))
+  }
+
+  const handleResetPassword = async (id: string) => {
+    const res = await adminFetch(`/api/admin/team-members/${id}/reset-password`, { method: 'POST' })
+    const result = await res.json().catch(() => ({}))
+    setActionMsg(id, res.ok ? 'Lien de réinitialisation envoyé' : (result?.error ?? 'Échec'))
+  }
+
+  const handleToggleSuspend = async (id: string, suspend: boolean) => {
+    const res = await adminFetch(`/api/admin/team-members/${id}/suspend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suspend }),
+    })
+    setActionMsg(id, res.ok ? (suspend ? 'Membre suspendu' : 'Membre réactivé') : 'Échec')
+  }
+
+  const filtered = roleFilter ? editors.filter((e) => (e.roles ?? []).includes(roleFilter)) : editors
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-navy font-bold">Editors ({editors.length})</h2>
-        <motion.button
-          onClick={() => setShowNew(true)}
-          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand hover:bg-ocean text-white text-xs font-semibold transition-colors shadow-sm shadow-brand/25"
-        >
-          <Plus size={13} /> Add Editor
-        </motion.button>
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <h2 className="text-navy font-bold">Team Members ({filtered.length})</h2>
+        <div className="flex items-center gap-2">
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as TeamMemberRole | '')} className="text-xs" style={{ width: 'auto' }}>
+            <option value="">Tous les rôles</option>
+            {TEAM_MEMBER_ROLES.map((r) => <option key={r} value={r}>{TEAM_MEMBER_ROLE_LABELS[r]}</option>)}
+          </select>
+          <motion.button
+            onClick={() => setShowNew(true)}
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand hover:bg-ocean text-white text-xs font-semibold transition-colors shadow-sm shadow-brand/25"
+          >
+            <Plus size={13} /> Ajouter un membre
+          </motion.button>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -127,14 +246,12 @@ export default function EditorRoster() {
       </AnimatePresence>
 
       <div className="space-y-2">
-        {editors.length === 0 && !showNew && (
-          <p className="text-navy/35 text-sm text-center py-8">
-            No editors yet. Click "Add Editor" to start.
-          </p>
+        {filtered.length === 0 && !showNew && (
+          <p className="text-navy/35 text-sm text-center py-8">Aucun membre. Cliquez sur « Ajouter un membre » pour commencer.</p>
         )}
 
         <AnimatePresence>
-          {editors.map((editor, i) => (
+          {filtered.map((editor, i) => (
             <motion.div
               key={editor.id}
               initial={{ opacity: 0, y: 10 }}
@@ -144,55 +261,110 @@ export default function EditorRoster() {
             >
               {editingId === editor.id ? (
                 <EditorForm
-                  initial={{ full_name: editor.full_name, specialty: editor.specialty, contact_info: editor.contact_info, notes: editor.notes }}
+                  initial={{
+                    full_name: editor.full_name,
+                    roles: (editor.roles ?? []) as TeamMemberRole[],
+                    specialty: editor.specialty,
+                    contract_type: editor.contract_type ?? 'freelance',
+                    level: editor.level ?? '',
+                    email: editor.email ?? '',
+                    phone: editor.phone ?? '',
+                    default_rate: (editor.default_rate ?? 0).toString(),
+                    notes: editor.notes,
+                  }}
                   onSave={(data) => handleUpdate(editor.id, data)}
                   onCancel={() => setEditingId(null)}
                 />
               ) : (
-                <div className="glass-sm rounded-2xl px-4 py-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-navy font-semibold text-sm">{editor.full_name}</p>
-                      <span
-                        className="text-[10px] font-semibold rounded-full px-2 py-0.5"
-                        style={{ background: 'rgba(42,164,231,0.1)', color: '#0A60AD', border: '1px solid rgba(42,164,231,0.2)' }}
-                      >
-                        {SPECIALTY_LABELS[editor.specialty]}
-                      </span>
-                    </div>
-                    {(editor.contact_info || editor.notes) && (
-                      <p className="text-navy/45 text-xs mt-0.5 truncate">
-                        {[editor.contact_info, editor.notes].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1 shrink-0">
-                    <motion.button
-                      onClick={() => setEditingId(editor.id)}
-                      whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                      className="p-1.5 rounded-xl text-navy/35 hover:text-navy hover:bg-white/50 transition-colors"
-                    >
-                      <Pencil size={13} />
-                    </motion.button>
-                    {confirmDelete === editor.id ? (
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => handleDelete(editor.id)} className="px-2 py-1 rounded-lg bg-red-500 text-white text-xs font-medium">
-                          Confirm
-                        </button>
-                        <button onClick={() => setConfirmDelete(null)} className="px-2 py-1 rounded-lg border border-silver text-navy/50 text-xs">
-                          Cancel
-                        </button>
+                <div className="glass-sm rounded-2xl px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-navy font-semibold text-sm">{editor.full_name}</p>
+                        <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 border ${STATUS_STYLES[editor.account_status]}`}>
+                          {STATUS_LABELS[editor.account_status]}
+                        </span>
+                        {(editor.roles ?? []).map((r) => (
+                          <span key={r} className="text-[10px] font-semibold rounded-full px-2 py-0.5"
+                            style={{ background: 'rgba(42,164,231,0.1)', color: '#0A60AD', border: '1px solid rgba(42,164,231,0.2)' }}>
+                            {TEAM_MEMBER_ROLE_LABELS[r as TeamMemberRole] ?? r}
+                          </span>
+                        ))}
                       </div>
-                    ) : (
+                      <p className="text-navy/45 text-xs mt-0.5 truncate">
+                        {[editor.email, editor.phone, editor.level, editor.contract_type === 'staff' ? 'Staff' : 'Freelance'].filter(Boolean).join(' · ')}
+                      </p>
+                      {actionState[editor.id] && (
+                        <p className="text-brand text-[11px] font-medium mt-1">{actionState[editor.id]}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {editor.email && editor.account_status !== 'active' && (
+                        <motion.button
+                          onClick={() => handleInvite(editor.id)}
+                          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                          title="Inviter"
+                          className="p-1.5 rounded-xl text-navy/35 hover:text-brand hover:bg-brand/10 transition-colors"
+                        >
+                          <Send size={13} />
+                        </motion.button>
+                      )}
+                      {editor.email && editor.account_status === 'active' && (
+                        <motion.button
+                          onClick={() => handleResetPassword(editor.id)}
+                          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                          title="Réinitialiser mot de passe"
+                          className="p-1.5 rounded-xl text-navy/35 hover:text-brand hover:bg-brand/10 transition-colors"
+                        >
+                          <KeyRound size={13} />
+                        </motion.button>
+                      )}
+                      {editor.account_status === 'suspended' ? (
+                        <motion.button
+                          onClick={() => handleToggleSuspend(editor.id, false)}
+                          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                          title="Réactiver"
+                          className="p-1.5 rounded-xl text-navy/35 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        >
+                          <PlayCircle size={13} />
+                        </motion.button>
+                      ) : editor.account_status === 'active' && (
+                        <motion.button
+                          onClick={() => handleToggleSuspend(editor.id, true)}
+                          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                          title="Suspendre"
+                          className="p-1.5 rounded-xl text-navy/35 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        >
+                          <Ban size={13} />
+                        </motion.button>
+                      )}
                       <motion.button
-                        onClick={() => setConfirmDelete(editor.id)}
+                        onClick={() => setEditingId(editor.id)}
                         whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                        className="p-1.5 rounded-xl text-navy/35 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        className="p-1.5 rounded-xl text-navy/35 hover:text-navy hover:bg-white/50 transition-colors"
                       >
-                        <Trash2 size={13} />
+                        <Pencil size={13} />
                       </motion.button>
-                    )}
+                      {confirmDelete === editor.id ? (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => handleDelete(editor.id)} className="px-2 py-1 rounded-lg bg-red-500 text-white text-xs font-medium">
+                            Confirmer
+                          </button>
+                          <button onClick={() => setConfirmDelete(null)} className="px-2 py-1 rounded-lg border border-silver text-navy/50 text-xs">
+                            Annuler
+                          </button>
+                        </div>
+                      ) : (
+                        <motion.button
+                          onClick={() => setConfirmDelete(editor.id)}
+                          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                          className="p-1.5 rounded-xl text-navy/35 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </motion.button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

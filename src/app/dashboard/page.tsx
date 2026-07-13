@@ -3,6 +3,8 @@
 import AppLayout from '@/components/layout/AppLayout'
 import KPICards from '@/components/dashboard/KPICards'
 import EditorStats from '@/components/dashboard/EditorStats'
+import OperationalBlocks from '@/components/dashboard/OperationalBlocks'
+import StatsCharts from '@/components/dashboard/StatsCharts'
 import { useApp } from '@/context/AppContext'
 
 export default function DashboardPage() {
@@ -27,6 +29,14 @@ export default function DashboardPage() {
         ) : (
           <div className="p-6 space-y-8">
             <KPICards />
+            <section>
+              <h2 className="text-navy font-semibold mb-4">Suivi opérationnel</h2>
+              <OperationalBlocks />
+            </section>
+            <section>
+              <h2 className="text-navy font-semibold mb-4">Statistiques</h2>
+              <StatsCharts />
+            </section>
             <section>
               <h2 className="text-navy font-semibold mb-4">Editor Performance</h2>
               <EditorStats />
