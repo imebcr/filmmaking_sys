@@ -15,9 +15,12 @@ export const DELIVERABLES_ROOT = process.env.DELIVERABLES_ROOT
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024 // 5 GB, per CDC §7.3
 
 // 'commercial' never uploads deliverables, so it's intentionally absent here.
+const ZIP_MIMES = ['application/zip', 'application/x-zip-compressed', 'multipart/x-zip']
+
 const MIME_BY_ROLE: Partial<Record<TeamMemberRole, string[]>> = {
   editeur: ['video/mp4', 'video/quicktime', 'video/x-prores', 'video/prores'],
-  filmmaker: ['video/mp4', 'video/quicktime', 'video/x-prores', 'video/prores'],
+  // Filmmakers submit raw footage — often bundled as a zip since a shoot is many clips at once.
+  filmmaker: ['video/mp4', 'video/quicktime', 'video/x-prores', 'video/prores', ...ZIP_MIMES],
   voice_over: ['audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3'],
   script_writer: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'],
 }

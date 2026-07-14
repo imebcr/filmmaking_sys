@@ -107,6 +107,18 @@ export interface Project {
   stakeholders?: Stakeholder[]
   editor_assignments?: EditorAssignment[]
   deliverables?: Deliverable[]
+  project_files?: ProjectFile[]
+}
+
+export interface ProjectFile {
+  id: string
+  project_id: string
+  file_name: string
+  file_path: string
+  size_bytes: number
+  mime_type: string
+  uploaded_by: string | null
+  created_at: string
 }
 
 export interface Deliverable {

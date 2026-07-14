@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Kanban, Calendar, DollarSign, Settings, LayoutDashboard } from 'lucide-react'
+import { Kanban, Calendar, Settings, LayoutDashboard, Table2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAdminIdentity } from '@/lib/use-admin-identity'
@@ -10,8 +10,8 @@ import { useAdminIdentity } from '@/lib/use-admin-identity'
 const links = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/pipeline', label: 'Pipeline', icon: Kanban },
+  { href: '/projects', label: 'Projets', icon: Table2 },
   { href: '/availability', label: 'Avail.', icon: Calendar },
-  { href: '/finance', label: 'Finance', icon: DollarSign, adminOnly: true },
   { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ]
 
@@ -22,7 +22,7 @@ export default function BottomNav() {
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass-nav">
-      <div className={visibleLinks.length === 5 ? 'grid grid-cols-5' : 'grid grid-cols-3'}>
+      <div className={visibleLinks.length === 5 ? 'grid grid-cols-5' : 'grid grid-cols-4'}>
         {visibleLinks.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-guard'
 import { createServerSupabaseClient } from '@/lib/server-supabase'
-import { createRandomToken, hashToken, expiresAt } from '@/lib/member-security'
+import { createRandomToken, hashToken } from '@/lib/member-security'
 import { notifyInvitationSent } from '@/lib/notifications'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -15,11 +15,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const token = createRandomToken()
   const tokenHash = hashToken(token)
-  const tokenExpiresAt = expiresAt(60 * 24 * 7) // 7 days
 
+  // No expiry — the invite stays valid until the member sets their password (accept route clears the token then).
   const { error: updateError } = await supabase
     .from('editors')
-    .update({ invitation_token: tokenHash, invitation_expires_at: tokenExpiresAt, account_status: 'invited' })
+    .update({ invitation_token: tokenHash, invitation_expires_at: null, account_status: 'invited' })
     .eq('id', id)
 
   if (updateError) return NextResponse.json({ error: 'Impossible de préparer l’invitation.' }, { status: 500 })

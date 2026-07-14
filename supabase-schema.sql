@@ -169,6 +169,18 @@ CREATE TABLE editor_assignments (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- ─── project_files — reference files attached to a project ────
+CREATE TABLE project_files (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  size_bytes BIGINT NOT NULL DEFAULT 0,
+  mime_type TEXT NOT NULL,
+  uploaded_by UUID REFERENCES editors(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ─── Auto-update updated_at ───────────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -198,3 +210,4 @@ ALTER TABLE contacts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications DISABLE ROW LEVEL SECURITY;
 ALTER TABLE project_stakeholders DISABLE ROW LEVEL SECURITY;
 ALTER TABLE editor_assignments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE project_files DISABLE ROW LEVEL SECURITY;

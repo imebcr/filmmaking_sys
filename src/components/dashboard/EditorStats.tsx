@@ -6,7 +6,6 @@ import {
 } from 'date-fns'
 import { motion } from 'framer-motion'
 import { useApp } from '@/context/AppContext'
-import { calcMargin, formatDZD, marginBg } from '@/lib/utils'
 import type { EditorAssignment } from '@/lib/types'
 import { SPECIALTY_LABELS } from '@/lib/types'
 
@@ -43,21 +42,13 @@ export default function EditorStats() {
       const myAssignments = editorAssignments.filter((a) => a.editor_id === editor.id)
       const projectIds = [...new Set(myAssignments.map((a) => a.project_id))]
       const myProjects = projects.filter((p) => projectIds.includes(p.id))
-      const revenue = myProjects.reduce((s, p) => s + (p.deal_price ?? 0), 0)
-      const margins = myProjects
-        .filter((p) => (p.deal_price ?? 0) > 0)
-        .map((p) => {
-          const totalCost = (p.stakeholders ?? []).reduce((s, sh) => s + (sh.cost || 0), 0)
-          return calcMargin(p.deal_price ?? 0, totalCost).marginPct
-        })
-      const avgMargin = margins.length > 0 ? margins.reduce((s, m) => s + m, 0) / margins.length : null
       const now = new Date()
       const active = myAssignments.find(
         (a) => isBefore(new Date(a.start_date), now) && isAfter(new Date(a.end_date), now),
       )
       const activeProject = active ? projects.find((p) => p.id === active.project_id) : null
       const utilization = calcUtilization(editor.id, editorAssignments)
-      return { editor, projectCount: myProjects.length, revenue, avgMargin, utilization, activeProject }
+      return { editor, projectCount: myProjects.length, utilization, activeProject }
     })
   }, [editors, editorAssignments, projects])
 
@@ -80,13 +71,11 @@ export default function EditorStats() {
               <th className="text-left px-4 py-3.5 font-semibold">Specialty</th>
               <th className="text-center px-4 py-3.5 font-semibold">Projects</th>
               <th className="text-left px-4 py-3.5 font-semibold w-44">Utilization (30d)</th>
-              <th className="text-right px-4 py-3.5 font-semibold">Revenue</th>
-              <th className="text-right px-4 py-3.5 font-semibold">Avg Margin</th>
               <th className="text-left px-4 py-3.5 font-semibold">Working On</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ editor, projectCount, revenue, avgMargin, utilization, activeProject }, i) => (
+            {rows.map(({ editor, projectCount, utilization, activeProject }, i) => (
               <motion.tr
                 key={editor.id}
                 initial={{ opacity: 0, x: -10 }}
@@ -116,16 +105,6 @@ export default function EditorStats() {
                     <span className="text-navy text-xs w-8 text-right font-medium">{Math.round(utilization)}%</span>
                   </div>
                 </td>
-                <td className="px-4 py-4 text-right text-navy font-medium">
-                  {revenue > 0 ? formatDZD(revenue) : <span className="text-navy/30">—</span>}
-                </td>
-                <td className="px-4 py-4 text-right">
-                  {avgMargin !== null ? (
-                    <span className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${marginBg(avgMargin)}`}>
-                      {Math.round(avgMargin)}%
-                    </span>
-                  ) : <span className="text-navy/30">—</span>}
-                </td>
                 <td className="px-4 py-4">
                   {activeProject ? (
                     <span className="text-ocean text-xs bg-brand/10 border border-brand/25 px-2.5 py-1 rounded-full font-medium">
@@ -143,7 +122,7 @@ export default function EditorStats() {
 
       {/* Mobile cards */}
       <div className="lg:hidden space-y-3">
-        {rows.map(({ editor, projectCount, revenue, avgMargin, utilization, activeProject }, i) => (
+        {rows.map(({ editor, projectCount, utilization, activeProject }, i) => (
           <motion.div
             key={editor.id}
             initial={{ opacity: 0, y: 16 }}
@@ -181,23 +160,9 @@ export default function EditorStats() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className="text-navy/45 text-[10px] uppercase font-semibold">Projects</p>
-                <p className="text-navy font-bold text-lg">{projectCount}</p>
-              </div>
-              <div>
-                <p className="text-navy/45 text-[10px] uppercase font-semibold">Revenue</p>
-                <p className="text-navy font-bold text-xs mt-1">{revenue > 0 ? formatDZD(revenue) : '—'}</p>
-              </div>
-              <div>
-                <p className="text-navy/45 text-[10px] uppercase font-semibold">Avg Margin</p>
-                {avgMargin !== null ? (
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${marginBg(avgMargin)}`}>
-                    {Math.round(avgMargin)}%
-                  </span>
-                ) : <p className="text-navy/30 text-xs mt-1">—</p>}
-              </div>
+            <div className="text-center">
+              <p className="text-navy/45 text-[10px] uppercase font-semibold">Projects</p>
+              <p className="text-navy font-bold text-lg">{projectCount}</p>
             </div>
           </motion.div>
         ))}

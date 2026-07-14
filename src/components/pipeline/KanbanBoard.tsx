@@ -8,16 +8,15 @@ import {
 import { motion } from 'framer-motion'
 import { Search } from 'lucide-react'
 import type { Project, ProjectStage } from '@/lib/types'
-import { STAGES } from '@/lib/types'
+import { STAGES, STAGE_LABELS } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
+import { resolveTargetStage, hasDeliverableForCurrentStage, stageRolesAlreadyAssigned, STAGE_ROLES } from '@/lib/stage-rules'
 import KanbanColumn from './KanbanColumn'
 import ProjectCard from './ProjectCard'
 import AssignEditorModal from './AssignEditorModal'
 import AssignStageModal from './AssignStageModal'
 import ProjectDetailModal from '@/components/project/ProjectDetailModal'
 import NewProjectModal from './NewProjectModal'
-
-const STAGE_ASSIGN_MODAL: ProjectStage[] = ['pre-production', 'shooting']
 
 export default function KanbanBoard() {
   const { projects, projectTypes, updateProject } = useApp()
@@ -39,22 +38,37 @@ export default function KanbanBoard() {
     setActiveProject(p ?? null)
   }
 
+  // Shared by drag-and-drop and the card's quick-move arrows.
+  const requestStageChange = (project: Project, requestedStage: ProjectStage) => {
+    const newStage = resolveTargetStage(project, requestedStage)
+    if (project.stage === newStage) return
+
+    const movingForward = STAGES.indexOf(newStage) > STAGES.indexOf(project.stage)
+    if (movingForward && !hasDeliverableForCurrentStage(project)) {
+      alert(`Impossible d'avancer : aucun livrable n'a encore été envoyé pour l'étape "${STAGE_LABELS[project.stage]}".`)
+      return
+    }
+
+    if (newStage === 'editing') {
+      setPendingProject(project)
+      setShowAssign(true)
+      return
+    }
+    if (STAGE_ROLES[newStage] && !stageRolesAlreadyAssigned(project, newStage)) {
+      setPendingProject(project)
+      setStageAssignTarget(newStage)
+      return
+    }
+    updateProject(project.id, { stage: newStage })
+  }
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     setActiveProject(null)
     if (!over) return
-    const newStage = over.id as ProjectStage
     const project = projects.find((p) => p.id === active.id)
-    if (!project || project.stage === newStage) return
-    if (newStage === 'editing') {
-      setPendingProject(project)
-      setShowAssign(true)
-    } else if (STAGE_ASSIGN_MODAL.includes(newStage)) {
-      setPendingProject(project)
-      setStageAssignTarget(newStage)
-    } else {
-      updateProject(project.id, { stage: newStage })
-    }
+    if (!project) return
+    requestStageChange(project, over.id as ProjectStage)
   }
 
   const filtered = projects.filter((p) => {
@@ -101,6 +115,7 @@ export default function KanbanBoard() {
               projects={byStage(stage)}
               onCardClick={(p) => setDetailProject(p)}
               onAddProject={stage === 'incoming' ? () => setShowNew(true) : undefined}
+              onRequestStageChange={requestStageChange}
             />
           ))}
         </div>

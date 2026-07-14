@@ -20,11 +20,10 @@ export async function POST(request: Request) {
     .from('editors')
     .select('*')
     .eq('invitation_token', tokenHash)
-    .gt('invitation_expires_at', new Date().toISOString())
     .single()
 
   if (memberError || !member) {
-    return NextResponse.json({ error: 'Le lien d’activation est invalide ou expiré.' }, { status: 404 })
+    return NextResponse.json({ error: 'Le lien d’activation est invalide. Demandez une nouvelle invitation.' }, { status: 404 })
   }
 
   const passwordHash = await hashPassword(password)

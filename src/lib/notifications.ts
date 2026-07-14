@@ -137,14 +137,24 @@ export async function notifyDeadline24h(memberId: string, projectName: string) {
   })
 }
 
-export async function notifyDeliverableSubmitted(memberName: string, projectName: string, version: number) {
-  if (!ADMIN_EMAIL) return
-  await notifyAdmin(
-    'deliverable_submitted',
-    { memberName, projectName, version },
-    () => sendDeliverableSubmittedEmail(ADMIN_EMAIL, memberName, projectName, version),
-    `📥 ${memberName} a soumis la v${version} pour <b>${projectName}</b>.`,
-  )
+export async function notifyDeliverableSubmitted(memberName: string, projectName: string, version: number, commercialId?: string | null) {
+  if (ADMIN_EMAIL) {
+    await notifyAdmin(
+      'deliverable_submitted',
+      { memberName, projectName, version },
+      () => sendDeliverableSubmittedEmail(ADMIN_EMAIL, memberName, projectName, version),
+      `📥 ${memberName} a soumis la v${version} pour <b>${projectName}</b>.`,
+    )
+  }
+  if (commercialId) {
+    await notify({
+      recipientId: commercialId,
+      eventType: 'deliverable_submitted',
+      payload: { memberName, projectName, version },
+      sendEmail: (m) => sendDeliverableSubmittedEmail(m.email!, memberName, projectName, version),
+      telegramText: () => `📥 ${memberName} a soumis la v${version} pour <b>${projectName}</b>.`,
+    })
+  }
 }
 
 export async function notifyDeliverableValidated(memberId: string, projectName: string, isFinalStage: boolean) {

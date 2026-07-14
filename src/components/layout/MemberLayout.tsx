@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Calendar, User, LogOut } from 'lucide-react'
+import { LayoutDashboard, Calendar, User, LogOut, Kanban } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSession, signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,7 @@ import LogoutConfirmModal from '@/components/ui/LogoutConfirmModal'
 
 const links = [
   { href: '/me', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/me/kanban', label: 'Kanban', icon: Kanban, exact: false },
   { href: '/me/calendar', label: 'Calendrier', icon: Calendar, exact: false },
   { href: '/me/profile', label: 'Profil', icon: User, exact: false },
 ]
@@ -93,7 +94,7 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
       />
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass-nav">
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-4">
           {links.map(({ href, label, icon: Icon, exact }) => {
             const active = isActive(href, exact)
             return (

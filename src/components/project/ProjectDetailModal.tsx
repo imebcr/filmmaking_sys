@@ -3,44 +3,23 @@
 import { useState, useEffect } from 'react'
 import { Trash2 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import type { Project, Stakeholder, StakeholderRole, ProjectStage, TeamMemberRole } from '@/lib/types'
-import { STAGES, STAGE_LABELS, STAKEHOLDER_LABELS, DELIVERABLE_STAGES, ROLE_TO_STAKEHOLDER, TEAM_MEMBER_ROLES } from '@/lib/types'
+import type { Project, ProjectStage, TeamMemberRole } from '@/lib/types'
+import { STAGE_LABELS, DELIVERABLE_STAGES, ROLE_TO_STAKEHOLDER, TEAM_MEMBER_ROLE_LABELS } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
 import DeliverablePanel from '@/components/deliverables/DeliverablePanel'
-import { formatDZD, calcMargin, marginBg } from '@/lib/utils'
+import ProjectFilesSection from '@/components/project/ProjectFilesSection'
 import { syncAssignments } from '@/lib/sync-assignments'
 
-// Which team-member role (if any) can fill a given stakeholder role via a linked account
-const STAKEHOLDER_TO_MEMBER_ROLE: Partial<Record<StakeholderRole, TeamMemberRole>> = Object.fromEntries(
-  TEAM_MEMBER_ROLES
-    .filter((r) => ROLE_TO_STAKEHOLDER[r])
-    .map((r) => [ROLE_TO_STAKEHOLDER[r] as StakeholderRole, r]),
-)
+// Team roles assigned up front, same set offered when the project is created.
+// The editor is deliberately excluded — assigned only once the project reaches Editing.
+const TEAM_ROLES: TeamMemberRole[] = ['filmmaker', 'script_writer', 'voice_over']
 
 interface Props {
   project: Project
   onClose: () => void
   onSwitchProject?: (id: string) => void
-}
-
-type StakeholderDraft = {
-  role: StakeholderRole
-  name: string
-  editor_id: string | null
-  cost: string
-}
-
-const ROLES: StakeholderRole[] = ['filmmaker', 'media_face', 'voiceover', 'scriptwriter', 'editor']
-
-function defaultDraft(role: StakeholderRole, existing?: Stakeholder): StakeholderDraft {
-  return {
-    role,
-    name: existing?.name ?? '',
-    editor_id: existing?.editor_id ?? null,
-    cost: existing?.cost?.toString() ?? '',
-  }
 }
 
 const Label = ({ children }: { children: React.ReactNode }) => (
@@ -59,7 +38,6 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
   const [projectTypeId, setProjectTypeId] = useState(project.project_type_id ?? '')
   const [dealPrice, setDealPrice] = useState(project.deal_price?.toString() ?? '')
   const [deadline, setDeadline] = useState(project.deadline?.slice(0, 10) ?? '')
-  const [stage, setStage] = useState<ProjectStage>(project.stage)
   const [notes, setNotes] = useState(project.notes ?? '')
   const [description, setDescription] = useState(project.description ?? '')
   const [clientPhone, setClientPhone] = useState(project.client_phone ?? '')
@@ -68,12 +46,8 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
   const [commercialId, setCommercialId] = useState(project.commercial_id ?? '')
   const [stageRequirements, setStageRequirements] = useState<Record<string, string>>(project.stage_requirements ?? {})
   const [revisionsAllowed, setRevisionsAllowed] = useState((project.revisions_allowed ?? 0).toString())
-  const [drafts, setDrafts] = useState<StakeholderDraft[]>(() =>
-    ROLES.map((role) => {
-      const existing = (project.stakeholders ?? []).find((s) => s.role === role)
-      return defaultDraft(role, existing)
-    }),
-  )
+  const [team, setTeam] = useState<Record<string, string>>({})
+  const [mediaFaceName, setMediaFaceName] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -81,35 +55,35 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
   // project.commercial_id is a FK into editors, not contacts — must be a team member with the Commercial role.
   const commercials = editors.filter((e) => (e.roles ?? []).includes('commercial'))
 
-  useEffect(() => {
-    setClientName(project.client_name)
-    setProjectTypeId(project.project_type_id ?? '')
-    setDealPrice(project.deal_price?.toString() ?? '')
-    setDeadline(project.deadline?.slice(0, 10) ?? '')
-    setStage(project.stage)
-    setNotes(project.notes ?? '')
-    setDescription(project.description ?? '')
-    setClientPhone(project.client_phone ?? '')
-    setClientEmail(project.client_email ?? '')
-    setClientCompany(project.client_company ?? '')
-    setCommercialId(project.commercial_id ?? '')
-    setStageRequirements(project.stage_requirements ?? {})
-    setRevisionsAllowed((project.revisions_allowed ?? 0).toString())
-    setDrafts(
-      ROLES.map((role) => {
-        const existing = (project.stakeholders ?? []).find((s) => s.role === role)
-        return defaultDraft(role, existing)
-      }),
-    )
-  }, [project.id])
-
-  const updateDraft = (role: StakeholderRole, field: keyof StakeholderDraft, value: string) => {
-    setDrafts((prev) => prev.map((d) => (d.role === role ? { ...d, [field]: value } : d)))
+  const loadFromProject = (p: Project) => {
+    setClientName(p.client_name)
+    setProjectTypeId(p.project_type_id ?? '')
+    setDealPrice(p.deal_price?.toString() ?? '')
+    setDeadline(p.deadline?.slice(0, 10) ?? '')
+    setNotes(p.notes ?? '')
+    setDescription(p.description ?? '')
+    setClientPhone(p.client_phone ?? '')
+    setClientEmail(p.client_email ?? '')
+    setClientCompany(p.client_company ?? '')
+    setCommercialId(p.commercial_id ?? '')
+    setStageRequirements(p.stage_requirements ?? {})
+    setRevisionsAllowed((p.revisions_allowed ?? 0).toString())
+    const nextTeam: Record<string, string> = {}
+    TEAM_ROLES.forEach((role) => {
+      const stakeholderRole = ROLE_TO_STAKEHOLDER[role]
+      const existing = (p.stakeholders ?? []).find((s) => s.role === stakeholderRole)
+      if (existing?.editor_id) nextTeam[role] = existing.editor_id
+    })
+    setTeam(nextTeam)
+    setMediaFaceName((p.stakeholders ?? []).find((s) => s.role === 'media_face')?.name ?? '')
   }
 
+  useEffect(() => {
+    loadFromProject(project)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id])
+
   const price = parseFloat(dealPrice) || 0
-  const totalCost = drafts.reduce((sum, d) => sum + (parseFloat(d.cost) || 0), 0)
-  const { margin, marginPct } = calcMargin(price, totalCost)
 
   const handleSave = async () => {
     setSaving(true)
@@ -119,7 +93,6 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
       project_type_id: projectTypeId || null,
       deal_price: price,
       deadline: deadline || null,
-      stage,
       notes,
       description,
       client_phone: clientPhone,
@@ -134,18 +107,25 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
       setSaveError(`Failed to save project: ${projectUpdateError}`)
       return
     }
-    const stakeholdersToSave = drafts
-      .filter((d) => d.name.trim() || parseFloat(d.cost) > 0)
-      .map((d) => ({
-        role: d.role,
-        name: d.name.trim(),
-        editor_id: STAKEHOLDER_TO_MEMBER_ROLE[d.role] ? (d.editor_id || null) : null,
-        cost: parseFloat(d.cost) || 0,
-      }))
+
+    const stakeholdersToSave: Array<{ role: 'filmmaker' | 'scriptwriter' | 'voiceover' | 'media_face'; editor_id: string | null; name: string; cost: number }> = TEAM_ROLES
+      .map((role) => {
+        const memberId = team[role]
+        if (!memberId) return null
+        const member = editors.find((e) => e.id === memberId)
+        if (!member) return null
+        return { role: ROLE_TO_STAKEHOLDER[role]!, editor_id: member.id as string | null, name: member.full_name, cost: 0 }
+      })
+      .filter((s): s is { role: 'filmmaker' | 'scriptwriter' | 'voiceover'; editor_id: string | null; name: string; cost: number } => s !== null)
+
+    if (mediaFaceName.trim()) {
+      stakeholdersToSave.push({ role: 'media_face', editor_id: null, name: mediaFaceName.trim(), cost: 0 })
+    }
+
     const err = await saveStakeholders(project.id, stakeholdersToSave)
     setSaving(false)
     if (err) {
-      setSaveError('Failed to save stakeholders. Run the SQL migration in Supabase to add the scriptwriter role.')
+      setSaveError('Failed to save team. Run the SQL migration in Supabase to add the scriptwriter role.')
       return
     }
 
@@ -170,7 +150,12 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
       <div className="space-y-6">
         {/* General Info */}
         <section>
-          <SectionTitle>General</SectionTitle>
+          <div className="flex items-center justify-between mb-3">
+            <SectionTitle>General</SectionTitle>
+            <span className="text-[10px] font-semibold rounded-full px-2.5 py-1 bg-brand/10 text-brand border border-brand/25">
+              {STAGE_LABELS[project.stage]}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
               <Label>Client Name</Label>
@@ -184,13 +169,6 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
                 {projectTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
               {selectedType && <div className="mt-1.5"><Badge projectType={selectedType} small /></div>}
-            </div>
-
-            <div>
-              <Label>Stage</Label>
-              <select value={stage} onChange={(e) => setStage(e.target.value as ProjectStage)}>
-                {STAGES.map((s) => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
-              </select>
             </div>
 
             <div>
@@ -288,76 +266,39 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
           </div>
         </section>
 
+        {/* Reference files */}
+        <ProjectFilesSection project={project} />
+
         {/* Deliverable validation */}
         <DeliverablePanel project={project} />
 
-        {/* Stakeholders */}
+        {/* Team — same roles offered at creation. The editor is assigned separately, only when the card reaches Editing. */}
         <section>
-          <SectionTitle>Stakeholders</SectionTitle>
-          <div className="space-y-3">
-            {drafts.map((draft) => (
-              <div key={draft.role} className="glass-sm rounded-xl p-3">
-                <p className="text-navy font-semibold text-xs mb-2">{STAKEHOLDER_LABELS[draft.role]}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {STAKEHOLDER_TO_MEMBER_ROLE[draft.role] ? (
-                    <select
-                      value={draft.editor_id ?? ''}
-                      onChange={(e) => {
-                        const editor = editors.find((ed) => ed.id === e.target.value)
-                        updateDraft(draft.role, 'editor_id', e.target.value)
-                        if (editor) updateDraft(draft.role, 'name', editor.full_name)
-                      }}
-                      className="text-xs"
-                    >
-                      <option value="">Sélectionner un membre…</option>
-                      {editors
-                        .filter((ed) => (ed.roles ?? []).includes(STAKEHOLDER_TO_MEMBER_ROLE[draft.role]!))
-                        .map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={draft.name}
-                      onChange={(e) => updateDraft(draft.role, 'name', e.target.value)}
-                      placeholder="Name"
-                      className="text-xs"
-                    />
+          <SectionTitle>Équipe</SectionTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {TEAM_ROLES.map((role) => {
+              const candidates = editors.filter((e) => (e.roles ?? []).includes(role))
+              return (
+                <div key={role}>
+                  <Label>{TEAM_MEMBER_ROLE_LABELS[role]}</Label>
+                  <select value={team[role] ?? ''} onChange={(e) => setTeam((t) => ({ ...t, [role]: e.target.value }))}>
+                    <option value="">Aucun</option>
+                    {candidates.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                  </select>
+                  {candidates.length === 0 && (
+                    <p className="text-navy/35 text-[11px] mt-1">Aucun membre {TEAM_MEMBER_ROLE_LABELS[role]}.</p>
                   )}
-                  <input
-                    type="number"
-                    value={draft.cost}
-                    onChange={(e) => updateDraft(draft.role, 'cost', e.target.value)}
-                    placeholder="Cost (DA)"
-                    min="0"
-                    className="text-xs"
-                  />
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Finance Summary */}
-        <section>
-          <SectionTitle>Finance</SectionTitle>
-          <div className="glass-sm rounded-xl p-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-navy/50">Deal Price</span>
-              <span className="text-navy font-semibold">{formatDZD(price)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-navy/50">Total Stakeholder Cost</span>
-              <span className="text-navy font-semibold">{formatDZD(totalCost)}</span>
-            </div>
-            <div className="border-t border-white/50 pt-2 flex justify-between text-sm">
-              <span className="text-navy/50">Margin</span>
-              <span className="text-navy font-bold">{formatDZD(margin)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-navy/50 text-sm">Margin %</span>
-              <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${marginBg(marginPct)}`}>
-                {Math.round(marginPct)}%
-              </span>
+              )
+            })}
+            <div>
+              <Label>Visage / Figurant</Label>
+              <input
+                type="text"
+                value={mediaFaceName}
+                onChange={(e) => setMediaFaceName(e.target.value)}
+                placeholder="Nom du figurant"
+              />
             </div>
           </div>
         </section>

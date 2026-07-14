@@ -6,32 +6,33 @@ import { CSS } from '@dnd-kit/utilities'
 import { Calendar, User, Trash2, X, Copy, ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { Project, ProjectStage } from '@/lib/types'
-import { STAGES, STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
+import { STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
+import { nextStageFor, prevStageFor } from '@/lib/stage-rules'
 import Badge from '@/components/ui/Badge'
-import { formatDZD, formatDate, calcMargin, marginDot } from '@/lib/utils'
+import { formatDZD, formatDate } from '@/lib/utils'
 import { useApp } from '@/context/AppContext'
 
 interface Props {
   project: Project
   onClick: () => void
   isDragOverlay?: boolean
+  onRequestStageChange?: (project: Project, stage: ProjectStage) => void
 }
 
-export default function ProjectCard({ project, onClick, isDragOverlay }: Props) {
-  const { projects, deleteProject, duplicateProject, updateProject } = useApp()
+export default function ProjectCard({ project, onClick, isDragOverlay, onRequestStageChange }: Props) {
+  const { projects, deleteProject, duplicateProject } = useApp()
   const [confirming, setConfirming] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
 
   const orderSiblings = project.order_id ? projects.filter((p) => p.order_id === project.order_id) : []
   const orderIndex = orderSiblings.findIndex((p) => p.id === project.id)
 
-  const stageIndex = STAGES.indexOf(project.stage)
-  const prevStage = stageIndex > 0 ? STAGES[stageIndex - 1] : null
-  const nextStage = stageIndex < STAGES.length - 1 ? STAGES[stageIndex + 1] : null
+  const prevStage = prevStageFor(project)
+  const nextStage = nextStageFor(project)
 
   const handleMove = (e: React.MouseEvent, stage: ProjectStage) => {
     e.stopPropagation()
-    updateProject(project.id, { stage })
+    onRequestStageChange?.(project, stage)
   }
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -44,9 +45,6 @@ export default function ProjectCard({ project, onClick, isDragOverlay }: Props) 
     opacity: isDragging ? 0 : 1,
   }
 
-  const stakeholders = project.stakeholders ?? []
-  const totalCost = stakeholders.reduce((s, sh) => s + (sh.cost || 0), 0)
-  const { marginPct } = calcMargin(project.deal_price || 0, totalCost)
   const editor = (project.editor_assignments ?? [])[0]?.editor
 
   const isActiveStage = DELIVERABLE_STAGES.includes(project.stage)
@@ -127,11 +125,6 @@ export default function ProjectCard({ project, onClick, isDragOverlay }: Props) 
             {project.client_name}
           </span>
           <div className="flex items-center gap-1.5 shrink-0">
-            <span
-              className="w-2.5 h-2.5 rounded-full shadow-sm"
-              style={{ backgroundColor: marginDot(marginPct) }}
-              title={`Margin: ${Math.round(marginPct)}%`}
-            />
             <motion.button
               onClick={handleDuplicate}
               whileHover={{ scale: 1.15 }}
@@ -170,6 +163,11 @@ export default function ProjectCard({ project, onClick, isDragOverlay }: Props) 
           {pendingDeliverable && (
             <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 animate-pulse">
               À valider
+            </span>
+          )}
+          {project.stage === 'delivered' && (
+            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200">
+              Livré · Rév. {project.revision_count}
             </span>
           )}
         </div>

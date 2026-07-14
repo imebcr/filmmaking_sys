@@ -21,11 +21,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   if (error || !project) return NextResponse.json({ error: 'Projet introuvable.' }, { status: 404 })
 
-  // Only the member's own submissions are relevant to them — no cross-member deliverable visibility.
+  // Used for this member's own upload-status gating (can they submit for the current stage?).
   const myDeliverables = (project.deliverables ?? [])
     .filter((d) => d.submitted_by === session.user.id)
     .sort((a, b) => b.version - a.version)
 
+  // Full project history — every stage's submissions, so e.g. an editor can see the script/footage
+  // that earlier roles delivered, even after the project has moved on or finished.
+  const allDeliverables = (project.deliverables ?? [])
+    .filter((d) => d.status !== 'uploading')
+    .sort((a, b) => b.version - a.version)
+
   const { deliverables: _all, ...rest } = project
-  return NextResponse.json({ project: { ...rest, myDeliverables } })
+  return NextResponse.json({ project: { ...rest, myDeliverables, allDeliverables } })
 }

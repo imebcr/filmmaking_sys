@@ -35,7 +35,7 @@ export interface ProjectBatchInput {
   stageRequirements: Record<string, string>
   revisionsAllowed: number
   videos: BatchVideoInput[]
-  sharedStakeholders: Array<{ role: StakeholderRole; editor_id: string; name: string }>
+  sharedStakeholders: Array<{ role: StakeholderRole; editor_id: string | null; name: string }>
 }
 
 interface AppContextType {
@@ -89,7 +89,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const [projectsRes, editorsRes, typesRes, assignmentsRes, contactsRes] = await Promise.all([
         supabase
           .from('projects')
-          .select('*, project_type:project_types(*), stakeholders:project_stakeholders(*), editor_assignments(*, editor:editors(*)), deliverables(*, submitted_by_member:editors(*))')
+          .select('*, project_type:project_types(*), stakeholders:project_stakeholders(*), editor_assignments(*, editor:editors(*)), deliverables(*, submitted_by_member:editors(*)), project_files(*)')
           .order('created_at', { ascending: false }),
         supabase.from('editors').select('*').eq('is_active', true).order('full_name'),
         supabase.from('project_types').select('*').order('name'),
@@ -135,6 +135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'editor_assignments' }, () => refetch())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => refetch())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'deliverables' }, () => refetch())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'project_files' }, () => refetch())
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }

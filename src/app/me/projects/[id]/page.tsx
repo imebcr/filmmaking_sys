@@ -2,9 +2,9 @@
 
 import { useEffect, useState, use as usePromise } from 'react'
 import { motion } from 'framer-motion'
-import { Calendar, PlayCircle, Upload, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Calendar, PlayCircle, Upload, AlertCircle, CheckCircle2, Download } from 'lucide-react'
 import type { Deliverable, ProjectStage } from '@/lib/types'
-import { STAGE_LABELS } from '@/lib/types'
+import { STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 import { useResumableUpload } from '@/lib/use-resumable-upload'
 
@@ -19,6 +19,7 @@ interface MemberProjectDetail {
   revisions_allowed: number
   started_at: string | null
   myDeliverables: Deliverable[]
+  allDeliverables: Deliverable[]
 }
 
 export default function MemberProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,9 +27,9 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
   const [project, setProject] = useState<MemberProjectDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [notes, setNotes] = useState('')
-  const { uploading, progress, error: uploadError, upload } = useResumableUpload()
+  const { uploading, progress, currentFileIndex, totalFiles, error: uploadError, uploadMultiple } = useResumableUpload()
 
   const load = () => {
     fetch(`/api/member/projects/${id}`)
@@ -48,9 +49,9 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
   }
 
   const handleUpload = async () => {
-    if (!file || !project) return
-    const ok = await upload({ projectId: id, stage: project.stage, file, notes })
-    if (ok) { setFile(null); setNotes(''); load() }
+    if (files.length === 0 || !project) return
+    const ok = await uploadMultiple({ projectId: id, stage: project.stage, files, notes })
+    if (ok) { setFiles([]); setNotes(''); load() }
   }
 
   if (loading) return <div className="flex items-center justify-center py-24 text-navy/35 text-sm">Chargement…</div>
@@ -104,18 +105,38 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
 
         {/* Upload zone */}
         <section>
-          <h2 className="text-navy font-semibold mb-3 flex items-center gap-2"><Upload size={15} /> Livrer un fichier</h2>
+          <h2 className="text-navy font-semibold mb-3 flex items-center gap-2"><Upload size={15} /> Livrer un ou plusieurs fichiers</h2>
           {!canUpload ? (
             <div className="glass-sm rounded-2xl p-4 flex items-center gap-2 text-navy/50 text-sm">
               <CheckCircle2 size={15} className="text-emerald-500" /> Livraison déjà soumise pour cette étape — en attente de validation.
             </div>
           ) : (
             <div className="glass-sm rounded-2xl p-4 space-y-3">
-              <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-xs" />
+              <input
+                type="file"
+                multiple
+                onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                className="text-xs"
+              />
+              {files.length > 0 && (
+                <div className="space-y-1">
+                  {files.map((f, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs glass-sm rounded-lg px-2.5 py-1.5">
+                      <span className="truncate text-navy/70">{f.name}</span>
+                      <button type="button" onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="text-navy/40 hover:text-red-500 ml-2">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="resize-none text-xs" placeholder="Note (optionnel) — ex : changements de cette version" />
               {uploading && (
-                <div className="h-1.5 rounded-full bg-navy/10 overflow-hidden">
-                  <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${progress}%` }} />
+                <div>
+                  <div className="h-1.5 rounded-full bg-navy/10 overflow-hidden">
+                    <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${progress}%` }} />
+                  </div>
+                  {totalFiles > 1 && (
+                    <p className="text-navy/40 text-[10px] mt-1">Fichier {currentFileIndex}/{totalFiles}</p>
+                  )}
                 </div>
               )}
               {uploadError && (
@@ -123,11 +144,11 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
               )}
               <motion.button
                 onClick={handleUpload}
-                disabled={!file || uploading}
+                disabled={files.length === 0 || uploading}
                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                 className="w-full py-2 rounded-xl bg-brand hover:bg-ocean text-white text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
               >
-                {uploading ? `Envoi… ${progress}%` : 'Soumettre le livrable'}
+                {uploading ? `Envoi… ${progress}%` : files.length > 1 ? `Soumettre ${files.length} livrables` : 'Soumettre le livrable'}
               </motion.button>
             </div>
           )}
@@ -143,6 +164,39 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
                   <p className="text-navy/50 text-xs">v{d.version} · {formatDate(d.submitted_at)}</p>
                   <p className="text-red-500 font-medium mt-1">{d.rejection_reason}</p>
                   {d.rejection_comment && <p className="text-navy/60 text-xs mt-0.5">{d.rejection_comment}</p>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Full project history — every stage, every role, even after this project moved on */}
+        {project.allDeliverables.length > 0 && (
+          <section>
+            <h2 className="text-navy font-semibold mb-3">Livrables du projet</h2>
+            <div className="space-y-3">
+              {DELIVERABLE_STAGES.filter((s) => project.allDeliverables.some((d) => d.stage === s)).map((s) => (
+                <div key={s} className="glass-sm rounded-xl p-3">
+                  <p className="text-navy/50 text-xs font-semibold mb-2">{STAGE_LABELS[s]}</p>
+                  <div className="space-y-1.5">
+                    {project.allDeliverables.filter((d) => d.stage === s).map((d) => (
+                      <div key={d.id} className="flex items-center justify-between text-xs">
+                        <span className="text-navy/60">v{d.version} · {formatDate(d.submitted_at)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={
+                            d.status === 'validated' ? 'text-emerald-600 font-semibold'
+                            : d.status === 'rejected' ? 'text-red-500 font-semibold'
+                            : 'text-navy/40'
+                          }>
+                            {d.status === 'validated' ? 'Validé' : d.status === 'rejected' ? 'Rejeté' : d.status === 'submitted' ? 'En attente' : d.status}
+                          </span>
+                          <a href={`/api/deliverables/${d.id}/file?download=1`} className="p-1 text-navy/40 hover:text-brand transition-colors" title="Télécharger">
+                            <Download size={12} />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

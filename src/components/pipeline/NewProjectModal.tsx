@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Minus } from 'lucide-react'
+import { Plus, Minus, Paperclip, X } from 'lucide-react'
 import { useApp } from '@/context/AppContext'
 import { syncAssignments } from '@/lib/sync-assignments'
+import { adminFetch } from '@/lib/admin-fetch'
 import Modal from '@/components/ui/Modal'
 import { DELIVERABLE_STAGES, STAGE_LABELS, ROLE_TO_STAKEHOLDER, TEAM_MEMBER_ROLE_LABELS, type TeamMemberRole } from '@/lib/types'
 
@@ -48,6 +49,9 @@ export default function NewProjectModal({ open, onClose }: Props) {
   const [quantity, setQuantity] = useState(1)
   const [videos, setVideos] = useState<VideoRow[]>([emptyVideoRow()])
   const [team, setTeam] = useState<Record<string, string>>({})
+  const [mediaFaceName, setMediaFaceName] = useState('')
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [saving, setSaving] = useState(false)
 
   // project.commercial_id is a FK into editors, not contacts — must be a team member with the Commercial role.
@@ -80,14 +84,14 @@ export default function NewProjectModal({ open, onClose }: Props) {
   const reset = () => {
     setClientName(''); setClientPhone(''); setClientEmail(''); setClientCompany(''); setCommercialId('')
     setDescription(''); setStageRequirements({}); setRevisionsAllowed('2')
-    setQuantity(1); setVideos([emptyVideoRow()]); setTeam({})
+    setQuantity(1); setVideos([emptyVideoRow()]); setTeam({}); setMediaFaceName(''); setAttachedFiles([])
   }
 
   const handleCreate = async () => {
     if (!clientName.trim()) return
     setSaving(true)
 
-    const sharedStakeholders = TEAM_ROLES
+    const sharedStakeholders: Array<{ role: 'filmmaker' | 'scriptwriter' | 'voiceover' | 'media_face'; editor_id: string | null; name: string }> = TEAM_ROLES
       .map((role) => {
         const memberId = team[role]
         if (!memberId) return null
@@ -96,6 +100,10 @@ export default function NewProjectModal({ open, onClose }: Props) {
         return { role: ROLE_TO_STAKEHOLDER[role]!, editor_id: member.id, name: member.full_name }
       })
       .filter((s): s is { role: 'filmmaker' | 'scriptwriter' | 'voiceover'; editor_id: string; name: string } => s !== null)
+
+    if (mediaFaceName.trim()) {
+      sharedStakeholders.push({ role: 'media_face', editor_id: null, name: mediaFaceName.trim() })
+    }
 
     const created = await createProjectBatch({
       clientName: clientName.trim(),
@@ -114,9 +122,19 @@ export default function NewProjectModal({ open, onClose }: Props) {
       sharedStakeholders,
     })
 
-    if (created && sharedStakeholders.length > 0) {
-      const memberIds = sharedStakeholders.map((s) => s.editor_id)
+    const memberIds = sharedStakeholders.map((s) => s.editor_id).filter((id): id is string => id !== null)
+    if (created && memberIds.length > 0) {
       created.forEach((p) => syncAssignments(p.id, memberIds, []))
+    }
+
+    if (created && attachedFiles.length > 0) {
+      for (const project of created) {
+        for (const file of attachedFiles) {
+          const form = new FormData()
+          form.append('file', file)
+          await adminFetch(`/api/admin/projects/${project.id}/files`, { method: 'POST', body: form })
+        }
+      }
     }
 
     setSaving(false)
@@ -211,6 +229,15 @@ export default function NewProjectModal({ open, onClose }: Props) {
               </div>
             )
           })}
+          <div>
+            <Label>Visage / Figurant</Label>
+            <input
+              type="text"
+              value={mediaFaceName}
+              onChange={(e) => setMediaFaceName(e.target.value)}
+              placeholder="Nom du figurant"
+            />
+          </div>
         </div>
 
         <SectionTitle>Coordonnées client</SectionTitle>
@@ -243,6 +270,36 @@ export default function NewProjectModal({ open, onClose }: Props) {
               />
             </div>
           ))}
+        </div>
+
+        <SectionTitle>Fichiers {quantity > 1 && <span className="text-navy/35 normal-case font-normal">— joints à toutes les vidéos</span>}</SectionTitle>
+        <div>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:text-ocean"
+          >
+            <Paperclip size={13} /> Ajouter des fichiers
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => setAttachedFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])])}
+          />
+          {attachedFiles.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {attachedFiles.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 glass-sm rounded-lg px-3 py-1.5 text-xs">
+                  <span className="flex-1 min-w-0 truncate text-navy/70">{f.name}</span>
+                  <button type="button" onClick={() => setAttachedFiles((prev) => prev.filter((_, j) => j !== i))} className="text-navy/40 hover:text-red-500">
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 pt-2">

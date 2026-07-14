@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Project, ProjectStage } from '@/lib/types'
 import { STAGE_LABELS } from '@/lib/types'
-import { cn, formatDZD } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import ProjectCard from './ProjectCard'
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   projects: Project[]
   onCardClick: (project: Project) => void
   onAddProject?: () => void
+  onRequestStageChange: (project: Project, stage: ProjectStage) => void
 }
 
 const STAGE_COLORS: Record<ProjectStage, { dot: string; border: string; label: string }> = {
@@ -23,10 +24,9 @@ const STAGE_COLORS: Record<ProjectStage, { dot: string; border: string; label: s
   delivered:      { dot: '#10B981', border: 'rgba(16,185,129,0.3)', label: 'rgba(16,185,129,0.12)' },
 }
 
-export default function KanbanColumn({ stage, projects, onCardClick, onAddProject }: Props) {
+export default function KanbanColumn({ stage, projects, onCardClick, onAddProject, onRequestStageChange }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: stage })
   const colors = STAGE_COLORS[stage]
-  const totalValue = projects.reduce((s, p) => s + (p.deal_price ?? 0), 0)
 
   return (
     <div className="flex flex-col w-72 shrink-0">
@@ -55,11 +55,6 @@ export default function KanbanColumn({ stage, projects, onCardClick, onAddProjec
             </motion.button>
           )}
         </div>
-        {totalValue > 0 && (
-          <p className="text-navy/40 text-[11px] font-medium ml-4 mt-0.5">
-            {formatDZD(totalValue)}
-          </p>
-        )}
       </div>
 
       {/* Drop zone */}
@@ -87,6 +82,7 @@ export default function KanbanColumn({ stage, projects, onCardClick, onAddProjec
               <ProjectCard
                 project={project}
                 onClick={() => onCardClick(project)}
+                onRequestStageChange={onRequestStageChange}
               />
             </motion.div>
           ))}

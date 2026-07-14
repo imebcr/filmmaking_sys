@@ -15,6 +15,8 @@ interface UploadState {
   uploading: boolean
   progress: number // 0-100
   error: string | null
+  currentFileIndex: number
+  totalFiles: number
 }
 
 /**
@@ -24,10 +26,10 @@ interface UploadState {
  * automatically after a 60s cutout" requirement without a full tus.io stack.
  */
 export function useResumableUpload() {
-  const [state, setState] = useState<UploadState>({ uploading: false, progress: 0, error: null })
+  const [state, setState] = useState<UploadState>({ uploading: false, progress: 0, error: null, currentFileIndex: 0, totalFiles: 0 })
 
   const upload = useCallback(async ({ projectId, stage, file, notes }: UploadParams): Promise<boolean> => {
-    setState({ uploading: true, progress: 0, error: null })
+    setState((s) => ({ ...s, uploading: true, progress: 0, error: null }))
     try {
       const initRes = await fetch('/api/member/deliverables/init', {
         method: 'POST',
@@ -86,13 +88,25 @@ export function useResumableUpload() {
       const completeData = await completeRes.json().catch(() => ({}))
       if (!completeRes.ok) throw new Error(completeData?.error ?? 'Impossible de finaliser l’upload.')
 
-      setState({ uploading: false, progress: 100, error: null })
+      setState((s) => ({ ...s, uploading: false, progress: 100, error: null }))
       return true
     } catch (err) {
-      setState({ uploading: false, progress: 0, error: err instanceof Error ? err.message : 'Erreur inconnue.' })
+      setState((s) => ({ ...s, uploading: false, error: err instanceof Error ? err.message : 'Erreur inconnue.' }))
       return false
     }
   }, [])
 
-  return { ...state, upload }
+  // Uploads several files as a batch — one deliverable (its own version) per file, submitted together.
+  const uploadMultiple = useCallback(async ({ projectId, stage, files, notes }: Omit<UploadParams, 'file'> & { files: File[] }): Promise<boolean> => {
+    let allOk = true
+    for (let i = 0; i < files.length; i++) {
+      setState((s) => ({ ...s, currentFileIndex: i + 1, totalFiles: files.length }))
+      const ok = await upload({ projectId, stage, file: files[i], notes })
+      if (!ok) allOk = false
+    }
+    setState((s) => ({ ...s, currentFileIndex: 0, totalFiles: 0 }))
+    return allOk
+  }, [upload])
+
+  return { ...state, upload, uploadMultiple }
 }

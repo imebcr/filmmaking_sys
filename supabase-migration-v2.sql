@@ -134,4 +134,17 @@ ALTER TABLE project_stakeholders DROP CONSTRAINT IF EXISTS project_stakeholders_
 ALTER TABLE project_stakeholders ADD CONSTRAINT project_stakeholders_role_check
   CHECK (role IN ('filmmaker', 'media_face', 'voiceover', 'scriptwriter', 'editor'));
 
+-- ─── project_files (new) — reference files attached to a project ───────────
+CREATE TABLE IF NOT EXISTS project_files (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  size_bytes BIGINT NOT NULL DEFAULT 0,
+  mime_type TEXT NOT NULL,
+  uploaded_by UUID REFERENCES editors(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ALTER TABLE project_files DISABLE ROW LEVEL SECURITY;
+
 -- ─── done ────────────────────────────────────────────────────

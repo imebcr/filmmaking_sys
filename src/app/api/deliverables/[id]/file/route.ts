@@ -20,6 +20,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const url = new URL(request.url)
   const variant = url.searchParams.get('variant') === 'thumbnail' ? 'thumbnail' : 'original'
   const shareToken = url.searchParams.get('share_token')
+  const forceDownload = url.searchParams.get('download') === '1'
 
   const supabase = createServerSupabaseClient()
   const { data: deliverable } = await supabase.from('deliverables').select('*').eq('id', id).single()
@@ -67,7 +68,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     headers: {
       'Content-Type': variant === 'thumbnail' ? 'image/jpeg' : deliverable.mime_type,
       'Content-Length': stat.size.toString(),
-      'Content-Disposition': variant === 'original' ? `inline; filename="${encodeURIComponent(deliverable.file_path.split(/[\\/]/).pop() ?? 'file')}"` : 'inline',
+      'Content-Disposition': variant === 'original'
+        ? `${forceDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(deliverable.file_path.split(/[\\/]/).pop() ?? 'file')}"`
+        : 'inline',
       'Cache-Control': 'private, max-age=0, no-cache',
     },
   })

@@ -2,10 +2,9 @@
 
 import { useMemo } from 'react'
 import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns'
-import { Briefcase, CheckCircle, TrendingUp, DollarSign } from 'lucide-react'
+import { Briefcase, CheckCircle, Clock, AlertTriangle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useApp } from '@/context/AppContext'
-import { calcMargin, formatDZD } from '@/lib/utils'
 
 interface KPICardProps {
   label: string
@@ -56,20 +55,14 @@ export default function KPICards() {
       } catch { return false }
     })
 
-    const totalPipeline = active.reduce((s, p) => s + (p.deal_price ?? 0), 0)
+    const pendingValidations = projects.reduce(
+      (s, p) => s + (p.deliverables ?? []).filter((d) => d.status === 'submitted').length,
+      0,
+    )
 
-    const marginsAll = projects
-      .filter((p) => (p.deal_price ?? 0) > 0)
-      .map((p) => {
-        const totalCost = (p.stakeholders ?? []).reduce((s, sh) => s + (sh.cost || 0), 0)
-        return calcMargin(p.deal_price ?? 0, totalCost).marginPct
-      })
+    const overdue = active.filter((p) => p.deadline && new Date(p.deadline) < now).length
 
-    const avgMargin = marginsAll.length > 0
-      ? marginsAll.reduce((s, m) => s + m, 0) / marginsAll.length
-      : 0
-
-    return { active: active.length, deliveredThisMonth: deliveredThisMonth.length, totalPipeline, avgMargin }
+    return { active: active.length, deliveredThisMonth: deliveredThisMonth.length, pendingValidations, overdue }
   }, [projects])
 
   return (
@@ -91,19 +84,19 @@ export default function KPICards() {
         delay={0.06}
       />
       <KPICard
-        label="Active Pipeline"
-        value={formatDZD(stats.totalPipeline)}
-        sub="total deal value"
-        icon={<DollarSign size={17} color="#2AA4E7" />}
-        iconBg="rgba(42,164,231,0.12)"
+        label="Pending Validation"
+        value={String(stats.pendingValidations)}
+        sub="deliverables awaiting review"
+        icon={<Clock size={17} color="#f59e0b" />}
+        iconBg="rgba(245,158,11,0.12)"
         delay={0.12}
       />
       <KPICard
-        label="Avg Margin"
-        value={`${Math.round(stats.avgMargin)}%`}
-        sub="across all projects"
-        icon={<TrendingUp size={17} color="#f59e0b" />}
-        iconBg="rgba(245,158,11,0.12)"
+        label="Overdue"
+        value={String(stats.overdue)}
+        sub="past deadline"
+        icon={<AlertTriangle size={17} color="#ef4444" />}
+        iconBg="rgba(239,68,68,0.12)"
         delay={0.18}
       />
     </div>
