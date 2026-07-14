@@ -6,7 +6,6 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   LineChart, Line,
-  RadialBarChart, RadialBar,
 } from 'recharts'
 import { subMonths, startOfMonth, format, isWithinInterval, endOfMonth, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -40,7 +39,7 @@ const tooltipStyle = {
 }
 
 export default function StatsCharts() {
-  const { projects, editors, editorAssignments } = useApp()
+  const { projects } = useApp()
   const [period, setPeriod] = useState<'month' | 'quarter'>('month')
 
   // ── Donut: CA par type de projet ──
@@ -66,23 +65,6 @@ export default function StatsCharts() {
       .filter((d) => d.value > 0)
   }, [projects])
 
-  // ── Jauge: utilisation moyenne équipe ──
-  const avgUtilization = useMemo(() => {
-    if (editors.length === 0) return 0
-    const now = Date.now()
-    const periodStart = now - 30 * 86_400_000
-    const utils = editors.map((editor) => {
-      const days = new Set<string>()
-      editorAssignments.filter((a) => a.editor_id === editor.id).forEach((a) => {
-        const s = Math.max(new Date(a.start_date).getTime(), periodStart)
-        const e = Math.min(new Date(a.end_date).getTime(), now)
-        for (let t = s; t <= e; t += 86_400_000) days.add(format(new Date(t), 'yyyy-MM-dd'))
-      })
-      return Math.min((days.size / 30) * 100, 100)
-    })
-    return Math.round(utils.reduce((a, b) => a + b, 0) / utils.length)
-  }, [editors, editorAssignments])
-
   // ── Barres: délai moyen de livraison par type ──
   const avgDeliveryByType = useMemo(() => {
     const map = new Map<string, { name: string; totalDays: number; count: number; color: string }>()
@@ -96,20 +78,6 @@ export default function StatsCharts() {
     })
     return Array.from(map.values()).map((d) => ({ name: d.name, days: Math.round(d.totalDays / d.count), color: d.color }))
   }, [projects])
-
-  // ── Barres: taux de validation V1 par membre ──
-  const validationRateByMember = useMemo(() => {
-    return editors
-      .map((editor) => {
-        const own = projects.flatMap((p) => (p.deliverables ?? []).filter((d) => d.submitted_by === editor.id && d.status !== 'submitted'))
-        if (own.length === 0) return null
-        const v1Validated = own.filter((d) => d.version === 1 && d.status === 'validated').length
-        const totalV1Attempts = own.filter((d) => d.version === 1).length
-        if (totalV1Attempts === 0) return null
-        return { name: editor.full_name, rate: Math.round((v1Validated / totalV1Attempts) * 100) }
-      })
-      .filter((d): d is { name: string; rate: number } => d !== null)
-  }, [editors, projects])
 
   // ── Courbe: revenu mensuel (12 derniers mois) ──
   const monthlyRevenue = useMemo(() => {
@@ -162,15 +130,6 @@ export default function StatsCharts() {
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Utilisation moyenne équipe">
-        <ResponsiveContainer width="100%" height={200}>
-          <RadialBarChart innerRadius="70%" outerRadius="100%" data={[{ name: 'Utilisation', value: avgUtilization, fill: avgUtilization >= 80 ? '#ef4444' : avgUtilization >= 50 ? '#f59e0b' : '#2AA4E7' }]} startAngle={90} endAngle={-270}>
-            <RadialBar background dataKey="value" cornerRadius={8} />
-          </RadialBarChart>
-        </ResponsiveContainer>
-        <p className="text-center text-navy font-bold text-2xl -mt-16">{avgUtilization}%</p>
-      </ChartCard>
-
       <ChartCard title="Délai moyen de livraison par type">
         {avgDeliveryByType.length === 0 ? (
           <p className="text-navy/35 text-xs py-12 text-center">Aucun projet livré pour le moment.</p>
@@ -184,22 +143,6 @@ export default function StatsCharts() {
               <Bar dataKey="days" radius={[6, 6, 0, 0]}>
                 {avgDeliveryByType.map((d, i) => <Cell key={i} fill={d.color} />)}
               </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </ChartCard>
-
-      <ChartCard title="Taux de validation V1 par membre">
-        {validationRateByMember.length === 0 ? (
-          <p className="text-navy/35 text-xs py-12 text-center">Pas encore de livrables traités.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={validationRateByMember} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(12,34,75,0.08)" horizontal={false} />
-              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#0C224B99' }} />
-              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 10, fill: '#0C224B99' }} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
-              <Bar dataKey="rate" radius={[0, 6, 6, 0]} fill="#2AA4E7" />
             </BarChart>
           </ResponsiveContainer>
         )}
