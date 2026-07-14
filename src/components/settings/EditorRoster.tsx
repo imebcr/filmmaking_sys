@@ -41,11 +41,12 @@ const Label = ({ children }: { children: React.ReactNode }) => (
 
 function EditorForm({ initial, onSave, onCancel }: {
   initial: EditorFormState
-  onSave: (data: EditorFormState) => Promise<void>
+  onSave: (data: EditorFormState) => Promise<string | null>
   onCancel: () => void
 }) {
   const [form, setForm] = useState(initial)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const set = <K extends keyof EditorFormState>(key: K, value: EditorFormState[K]) => setForm((f) => ({ ...f, [key]: value }))
 
   const toggleRole = (role: TeamMemberRole) => {
@@ -55,8 +56,10 @@ function EditorForm({ initial, onSave, onCancel }: {
   const handleSave = async () => {
     if (!form.full_name.trim()) return
     setSaving(true)
-    await onSave(form)
+    setError(null)
+    const err = await onSave(form)
     setSaving(false)
+    if (err) setError(err)
   }
 
   return (
@@ -127,6 +130,12 @@ function EditorForm({ initial, onSave, onCancel }: {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-red-600 text-xs font-medium">
+          {error}
+        </div>
+      )}
+
       <div className="flex gap-2 pt-1">
         <button
           onClick={onCancel}
@@ -160,8 +169,8 @@ export default function EditorRoster() {
     setTimeout(() => setActionState((s) => { const next = { ...s }; delete next[id]; return next }), 3000)
   }
 
-  const handleCreate = async (data: EditorFormState) => {
-    await createEditor({
+  const handleCreate = async (data: EditorFormState): Promise<string | null> => {
+    const { error } = await createEditor({
       full_name: data.full_name,
       roles: data.roles,
       specialty: data.specialty,
@@ -172,11 +181,13 @@ export default function EditorRoster() {
       default_rate: parseFloat(data.default_rate) || 0,
       notes: data.notes,
     })
+    if (error) return error
     setShowNew(false)
+    return null
   }
 
-  const handleUpdate = async (id: string, data: EditorFormState) => {
-    await updateEditor(id, {
+  const handleUpdate = async (id: string, data: EditorFormState): Promise<string | null> => {
+    const error = await updateEditor(id, {
       full_name: data.full_name,
       roles: data.roles,
       specialty: data.specialty,
@@ -187,7 +198,9 @@ export default function EditorRoster() {
       default_rate: parseFloat(data.default_rate) || 0,
       notes: data.notes,
     })
+    if (error) return error
     setEditingId(null)
+    return null
   }
 
   const handleDelete = async (id: string) => {

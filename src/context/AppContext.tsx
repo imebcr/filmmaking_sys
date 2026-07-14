@@ -54,8 +54,8 @@ interface AppContextType {
   deleteProject: (id: string) => Promise<void>
   duplicateProject: (id: string) => Promise<void>
 
-  createEditor: (data: Partial<Editor>) => Promise<Editor | null>
-  updateEditor: (id: string, data: Partial<Editor>) => Promise<void>
+  createEditor: (data: Partial<Editor>) => Promise<{ editor: Editor | null; error: string | null }>
+  updateEditor: (id: string, data: Partial<Editor>) => Promise<string | null>
   deleteEditor: (id: string) => Promise<void>
 
   createProjectType: (data: Partial<ProjectType>) => Promise<ProjectType | null>
@@ -259,21 +259,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // ── Editor mutations ─────────────────────────────────────────
-  const createEditor = async (data: Partial<Editor>): Promise<Editor | null> => {
+  const createEditor = async (data: Partial<Editor>): Promise<{ editor: Editor | null; error: string | null }> => {
     const { data: row, error } = await supabase
       .from('editors')
       .insert({ full_name: 'New Editor', specialty: 'both', ...data })
       .select()
       .single()
-    if (error) { console.error(error); return null }
+    if (error) { console.error(error); return { editor: null, error: error.message } }
     await refetch()
-    return row as Editor
+    return { editor: row as Editor, error: null }
   }
 
-  const updateEditor = async (id: string, data: Partial<Editor>) => {
+  const updateEditor = async (id: string, data: Partial<Editor>): Promise<string | null> => {
     const { error } = await supabase.from('editors').update(data).eq('id', id)
-    if (error) console.error(error)
+    if (error) { console.error(error); return error.message }
     await refetch()
+    return null
   }
 
   const deleteEditor = async (id: string) => {

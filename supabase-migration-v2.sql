@@ -147,4 +147,9 @@ CREATE TABLE IF NOT EXISTS project_files (
 );
 ALTER TABLE project_files DISABLE ROW LEVEL SECURITY;
 
+-- ─── editors — email unique only among active members ───────
+-- A soft-deleted (is_active=false) member's old email must not block reusing it.
+ALTER TABLE editors DROP CONSTRAINT IF EXISTS editors_email_key;
+CREATE UNIQUE INDEX IF NOT EXISTS editors_email_active_key ON editors(email) WHERE is_active = true;
+
 -- ─── done ────────────────────────────────────────────────────

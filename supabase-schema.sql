@@ -23,7 +23,7 @@ CREATE TABLE editors (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   full_name TEXT NOT NULL,
   roles TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-  email TEXT UNIQUE,
+  email TEXT,
   password_hash TEXT,
   invitation_token TEXT UNIQUE,
   invitation_expires_at TIMESTAMP WITH TIME ZONE,
@@ -52,6 +52,9 @@ CREATE TABLE editors (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+-- Email only needs to be unique among active members — a soft-deleted (is_active=false)
+-- member's old email must not block reusing it for someone new.
+CREATE UNIQUE INDEX editors_email_active_key ON editors(email) WHERE is_active = true;
 
 -- ─── client_orders ───────────────────────────────────────────
 -- A single client request can span several videos (projects) delivered on
