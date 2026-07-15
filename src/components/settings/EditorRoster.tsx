@@ -7,6 +7,7 @@ import type { EditorSpecialty, TeamMemberRole, ContractType, TeamMemberAccountSt
 import { SPECIALTY_LABELS, TEAM_MEMBER_ROLES, TEAM_MEMBER_ROLE_LABELS } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
 import { adminFetch } from '@/lib/admin-fetch'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 
 interface EditorFormState {
   full_name: string
@@ -400,26 +401,14 @@ export default function EditorRoster() {
                       >
                         <Pencil size={13} />
                       </motion.button>
-                      {confirmDelete === editor.id ? (
-                        <div className="flex items-center gap-1">
-                          <span className="text-red-500 text-[11px] font-medium">Suppression définitive !</span>
-                          <button onClick={() => handleDelete(editor.id)} className="px-2 py-1 rounded-lg bg-red-500 text-white text-xs font-medium">
-                            Confirmer
-                          </button>
-                          <button onClick={() => setConfirmDelete(null)} className="px-2 py-1 rounded-lg border border-silver text-navy/50 text-xs">
-                            Annuler
-                          </button>
-                        </div>
-                      ) : (
-                        <motion.button
-                          onClick={() => setConfirmDelete(editor.id)}
-                          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                          title="Supprimer définitivement"
-                          className="p-1.5 rounded-xl text-navy/35 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 size={13} />
-                        </motion.button>
-                      )}
+                      <motion.button
+                        onClick={() => setConfirmDelete(editor.id)}
+                        whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                        title="Supprimer définitivement"
+                        className="p-1.5 rounded-xl text-navy/35 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </motion.button>
                     </div>
                   </div>
                 </div>
@@ -428,6 +417,15 @@ export default function EditorRoster() {
           ))}
         </AnimatePresence>
       </div>
+
+      <ConfirmModal
+        open={confirmDelete !== null}
+        title="Supprimer ce membre ?"
+        message={`Cette action est définitive et irréversible : ${filtered.find((e) => e.id === confirmDelete)?.full_name ?? 'ce membre'} sera complètement supprimé de la base de données. Son nom restera visible sur les projets passés, mais son compte ne pourra pas être récupéré.`}
+        confirmLabel="Supprimer définitivement"
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete)}
+      />
     </div>
   )
 }

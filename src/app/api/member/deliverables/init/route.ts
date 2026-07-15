@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth-options'
 import { createServerSupabaseClient } from '@/lib/server-supabase'
 import { memberHasAccessToProject } from '@/lib/member-access'
-import { allowedMimeTypesForRoles, deliverableDir, ensureDir, MAX_UPLOAD_BYTES } from '@/lib/deliverable-storage'
+import { allowedMimeTypesForRoles, allAllowedMimeTypes, deliverableDir, ensureDir, MAX_UPLOAD_BYTES } from '@/lib/deliverable-storage'
+import { resolveUploaderIdentity } from '@/lib/upload-identity'
 import path from 'path'
 
 /**
@@ -15,8 +14,8 @@ import path from 'path'
  * the same practical guarantee CDC §7.3 asks for: resume after a network cutout.
  */
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
+  const identity = await resolveUploaderIdentity(request)
+  if (!identity) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
 
   const body = await request.json().catch(() => null)
   const projectId = body?.project_id as string | undefined
@@ -33,14 +32,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Fichier trop volumineux (limite 5 Go).' }, { status: 413 })
   }
 
-  const hasAccess = await memberHasAccessToProject(session.user.id, projectId)
-  if (!hasAccess) return NextResponse.json({ error: 'Projet non assigné.' }, { status: 403 })
+  if (!identity.privileged) {
+    const hasAccess = await memberHasAccessToProject(identity.editorId!, projectId)
+    if (!hasAccess) return NextResponse.json({ error: 'Projet non assigné.' }, { status: 403 })
+  }
 
   const supabase = createServerSupabaseClient()
-  const { data: member } = await supabase.from('editors').select('roles').eq('id', session.user.id).single()
-  const allowedMimes = allowedMimeTypesForRoles(member?.roles ?? [])
+  let allowedMimes: string[]
+  if (identity.privileged) {
+    allowedMimes = allAllowedMimeTypes()
+  } else {
+    const { data: member } = await supabase.from('editors').select('roles').eq('id', identity.editorId!).single()
+    allowedMimes = allowedMimeTypesForRoles(member?.roles ?? [])
+  }
   if (!allowedMimes.includes(mimeType)) {
-    return NextResponse.json({ error: 'Format de fichier non autorisé pour votre rôle.' }, { status: 400 })
+    return NextResponse.json({ error: 'Format de fichier non autorisé.' }, { status: 400 })
   }
 
   const { data: existing } = await supabase
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
       project_id: projectId,
       stage,
       version,
-      submitted_by: session.user.id,
+      submitted_by: identity.editorId,
       file_path: filePath,
       size_bytes: sizeBytes,
       mime_type: mimeType,

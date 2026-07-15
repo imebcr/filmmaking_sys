@@ -35,6 +35,13 @@ export function allowedMimeTypesForRoles(roles: string[]): string[] {
   return Array.from(set)
 }
 
+// Admin/commercial upload on anyone's behalf, at any stage — not tied to a single role's file types.
+export function allAllowedMimeTypes(): string[] {
+  const set = new Set<string>(IMAGE_MIMES)
+  Object.values(MIME_BY_ROLE).forEach((mimes) => mimes.forEach((m) => set.add(m)))
+  return Array.from(set)
+}
+
 export function deliverableDir(projectId: string, stage: string, version: number): string {
   return path.join(DELIVERABLES_ROOT, projectId, stage, String(version))
 }

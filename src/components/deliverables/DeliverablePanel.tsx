@@ -7,6 +7,7 @@ import type { Project, Deliverable, ProjectStage } from '@/lib/types'
 import { DELIVERABLE_STAGES, STAGE_LABELS } from '@/lib/types'
 import { adminFetch } from '@/lib/admin-fetch'
 import { formatDate } from '@/lib/utils'
+import AdminDeliverableUpload from './AdminDeliverableUpload'
 
 const REJECTION_REASONS = ['Qualité technique', 'Non conforme au brief', 'Fichier corrompu', 'Autre']
 
@@ -97,11 +98,15 @@ function statusBadge(status: Deliverable['status']) {
 
 // Read-only history block for a stage the project has already moved past (or hasn't reached yet
 // as the active stage) — download links stay available even after the project is fully delivered.
-function PastStageBlock({ stage, deliverables }: { stage: ProjectStage; deliverables: Deliverable[] }) {
+// Admin/commercial can still add a deliverable here on someone's behalf, at any stage.
+function PastStageBlock({ projectId, stage, deliverables }: { projectId: string; stage: ProjectStage; deliverables: Deliverable[] }) {
   const sorted = [...deliverables].sort((a, b) => b.version - a.version)
   return (
-    <div className="glass-sm rounded-xl p-3">
-      <p className="text-navy/50 text-xs font-semibold mb-2">{STAGE_LABELS[stage]}</p>
+    <div className="glass-sm rounded-xl p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-navy/50 text-xs font-semibold">{STAGE_LABELS[stage]}</p>
+        <AdminDeliverableUpload projectId={projectId} stage={stage} label="Envoyer" />
+      </div>
       <div className="space-y-1.5">
         {sorted.map((d) => {
           const Icon = fileIcon(d.mime_type)
@@ -200,7 +205,10 @@ export default function DeliverablePanel({ project }: { project: Project }) {
           </div>
 
           {!current ? (
-            <p className="text-navy/40 text-sm glass-sm rounded-xl p-4">Aucune soumission pour cette étape pour le moment.</p>
+            <div className="glass-sm rounded-xl p-4 space-y-2">
+              <p className="text-navy/40 text-sm">Aucune soumission pour cette étape pour le moment.</p>
+              <AdminDeliverableUpload projectId={project.id} stage={activeStage} label="Envoyer un livrable" />
+            </div>
           ) : (
             <div className="glass-sm rounded-xl p-4 space-y-3">
               <div className="flex items-start gap-3">
@@ -302,6 +310,10 @@ export default function DeliverablePanel({ project }: { project: Project }) {
                   <strong>{current.rejection_reason}</strong>{current.rejection_comment ? ` — ${current.rejection_comment}` : ''}
                 </div>
               )}
+
+              <div className="pt-1 border-t border-white/50">
+                <AdminDeliverableUpload projectId={project.id} stage={activeStage} label="Ajouter une nouvelle version" />
+              </div>
             </div>
           )}
 
@@ -328,7 +340,7 @@ export default function DeliverablePanel({ project }: { project: Project }) {
       {otherStages.length > 0 && (
         <div className="space-y-2">
           {otherStages.map((stage) => (
-            <PastStageBlock key={stage} stage={stage} deliverables={byStage(stage)} />
+            <PastStageBlock key={stage} projectId={project.id} stage={stage} deliverables={byStage(stage)} />
           ))}
         </div>
       )}

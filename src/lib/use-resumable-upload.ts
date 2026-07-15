@@ -19,19 +19,25 @@ interface UploadState {
   totalFiles: number
 }
 
+type Fetcher = (input: string, init?: RequestInit) => Promise<Response>
+
 /**
  * Offset-based resumable upload against /api/member/deliverables/*.
  * Retries the current chunk on transient network failure, re-syncing the
  * offset via GET first — this is what satisfies CDC §7.3/§12.1's "resumes
  * automatically after a 60s cutout" requirement without a full tus.io stack.
+ *
+ * Accepts a custom fetcher so admin (Supabase Auth, no session cookie on these
+ * routes) can pass adminFetch to attach a Bearer token; team members and
+ * commercials (NextAuth cookie session) can just use the default plain fetch.
  */
-export function useResumableUpload() {
+export function useResumableUpload(fetcher: Fetcher = fetch) {
   const [state, setState] = useState<UploadState>({ uploading: false, progress: 0, error: null, currentFileIndex: 0, totalFiles: 0 })
 
   const upload = useCallback(async ({ projectId, stage, file, notes }: UploadParams): Promise<boolean> => {
     setState((s) => ({ ...s, uploading: true, progress: 0, error: null }))
     try {
-      const initRes = await fetch('/api/member/deliverables/init', {
+      const initRes = await fetcher('/api/member/deliverables/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -57,7 +63,7 @@ export function useResumableUpload() {
         while (attempt < 5 && !success) {
           attempt++
           try {
-            const res = await fetch(`/api/member/deliverables/${deliverableId}/chunk`, {
+            const res = await fetcher(`/api/member/deliverables/${deliverableId}/chunk`, {
               method: 'PATCH',
               headers: { 'X-Upload-Offset': String(offset) },
               body: chunk,
@@ -75,7 +81,7 @@ export function useResumableUpload() {
             if (attempt >= 5) throw new Error('Échec de l’envoi après plusieurs tentatives.')
             await new Promise((r) => setTimeout(r, 1000 * attempt))
             // resync offset before retrying
-            const syncRes = await fetch(`/api/member/deliverables/${deliverableId}/chunk`)
+            const syncRes = await fetcher(`/api/member/deliverables/${deliverableId}/chunk`)
             const syncData = await syncRes.json().catch(() => ({}))
             if (syncRes.ok) offset = syncData.offset
           }
@@ -84,7 +90,7 @@ export function useResumableUpload() {
         setState((s) => ({ ...s, progress: Math.round((offset / file.size) * 100) }))
       }
 
-      const completeRes = await fetch(`/api/member/deliverables/${deliverableId}/complete`, { method: 'POST' })
+      const completeRes = await fetcher(`/api/member/deliverables/${deliverableId}/complete`, { method: 'POST' })
       const completeData = await completeRes.json().catch(() => ({}))
       if (!completeRes.ok) throw new Error(completeData?.error ?? 'Impossible de finaliser l’upload.')
 
@@ -94,7 +100,7 @@ export function useResumableUpload() {
       setState((s) => ({ ...s, uploading: false, error: err instanceof Error ? err.message : 'Erreur inconnue.' }))
       return false
     }
-  }, [])
+  }, [fetcher])
 
   // Uploads several files as a batch — one deliverable (its own version) per file, submitted together.
   const uploadMultiple = useCallback(async ({ projectId, stage, files, notes }: Omit<UploadParams, 'file'> & { files: File[] }): Promise<boolean> => {

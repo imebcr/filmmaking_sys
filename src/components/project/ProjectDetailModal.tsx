@@ -31,7 +31,7 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
 )
 
 export default function ProjectDetailModal({ project, onClose, onSwitchProject }: Props) {
-  const { projects, projectTypes, editors, updateProject, deleteProject, saveStakeholders } = useApp()
+  const { projects, projectTypes, editors, updateProject, deleteProject, saveStakeholders, updateAssignment } = useApp()
   const orderSiblings = project.order_id ? projects.filter((p) => p.id !== project.id && p.order_id === project.order_id) : []
 
   const [clientName, setClientName] = useState(project.client_name)
@@ -48,6 +48,7 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
   const [revisionsAllowed, setRevisionsAllowed] = useState((project.revisions_allowed ?? 0).toString())
   const [team, setTeam] = useState<Record<string, string>>({})
   const [mediaFaceName, setMediaFaceName] = useState('')
+  const [editorId, setEditorId] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -76,7 +77,11 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
     })
     setTeam(nextTeam)
     setMediaFaceName((p.stakeholders ?? []).find((s) => s.role === 'media_face')?.name ?? '')
+    setEditorId((p.editor_assignments ?? [])[0]?.editor_id ?? '')
   }
+
+  const currentAssignment = (project.editor_assignments ?? [])[0]
+  const eligibleEditorsForCut = editors.filter((e) => (e.roles ?? []).includes('editeur'))
 
   useEffect(() => {
     loadFromProject(project)
@@ -133,6 +138,15 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
     const newMemberIds = new Set(stakeholdersToSave.map((s) => s.editor_id).filter(Boolean) as string[])
     const added = [...newMemberIds].filter((id) => !previousMemberIds.has(id))
     const removed = [...previousMemberIds].filter((id) => !newMemberIds.has(id))
+
+    // Reassigning the editor (only possible once one was already assigned via the Editing-stage popup).
+    if (currentAssignment && editorId && editorId !== currentAssignment.editor_id) {
+      const newEditor = eligibleEditorsForCut.find((e) => e.id === editorId)
+      await updateAssignment(currentAssignment.id, { editor_id: editorId, editor_name: newEditor?.full_name ?? '' })
+      added.push(editorId)
+      if (currentAssignment.editor_id) removed.push(currentAssignment.editor_id)
+    }
+
     syncAssignments(project.id, added, removed)
 
     onClose()
@@ -300,6 +314,14 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
                 placeholder="Nom du figurant"
               />
             </div>
+            {currentAssignment && (
+              <div>
+                <Label>Éditeur (montage)</Label>
+                <select value={editorId} onChange={(e) => setEditorId(e.target.value)}>
+                  {eligibleEditorsForCut.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         </section>
 

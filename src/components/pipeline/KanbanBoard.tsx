@@ -8,13 +8,14 @@ import {
 import { motion } from 'framer-motion'
 import { Search } from 'lucide-react'
 import type { Project, ProjectStage } from '@/lib/types'
-import { STAGES, STAGE_LABELS } from '@/lib/types'
+import { STAGES } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
 import { resolveTargetStage, hasDeliverableForCurrentStage, stageRolesAlreadyAssigned, STAGE_ROLES } from '@/lib/stage-rules'
 import KanbanColumn from './KanbanColumn'
 import ProjectCard from './ProjectCard'
 import AssignEditorModal from './AssignEditorModal'
 import AssignStageModal from './AssignStageModal'
+import StageGateModal from './StageGateModal'
 import ProjectDetailModal from '@/components/project/ProjectDetailModal'
 import NewProjectModal from './NewProjectModal'
 
@@ -25,6 +26,8 @@ export default function KanbanBoard() {
   const [pendingProject, setPendingProject] = useState<Project | null>(null)
   const [showAssign, setShowAssign] = useState(false)
   const [stageAssignTarget, setStageAssignTarget] = useState<ProjectStage | null>(null)
+  const [gateProject, setGateProject] = useState<Project | null>(null)
+  const [gateRequestedStage, setGateRequestedStage] = useState<ProjectStage | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [search, setSearch] = useState('')
   const [filterTypeId, setFilterTypeId] = useState('')
@@ -38,14 +41,17 @@ export default function KanbanBoard() {
     setActiveProject(p ?? null)
   }
 
-  // Shared by drag-and-drop and the card's quick-move arrows.
-  const requestStageChange = (project: Project, requestedStage: ProjectStage) => {
+  // Shared by drag-and-drop and the card's quick-move arrows. skipDeliverableCheck is used
+  // when retrying right after an upload from the gate modal — realtime hasn't necessarily
+  // refetched project.deliverables yet, but the upload just succeeded, so the check is moot.
+  const requestStageChange = (project: Project, requestedStage: ProjectStage, skipDeliverableCheck = false) => {
     const newStage = resolveTargetStage(project, requestedStage)
     if (project.stage === newStage) return
 
     const movingForward = STAGES.indexOf(newStage) > STAGES.indexOf(project.stage)
-    if (movingForward && !hasDeliverableForCurrentStage(project)) {
-      alert(`Impossible d'avancer : aucun livrable n'a encore été envoyé pour l'étape "${STAGE_LABELS[project.stage]}".`)
+    if (!skipDeliverableCheck && movingForward && !hasDeliverableForCurrentStage(project)) {
+      setGateProject(project)
+      setGateRequestedStage(requestedStage)
       return
     }
 
@@ -147,6 +153,19 @@ export default function KanbanBoard() {
         targetStage={stageAssignTarget}
         onClose={() => { setStageAssignTarget(null); setPendingProject(null) }}
         onConfirm={() => setPendingProject(null)}
+      />
+
+      <StageGateModal
+        project={gateProject}
+        currentStage={gateProject?.stage ?? null}
+        onClose={() => { setGateProject(null); setGateRequestedStage(null) }}
+        onUploaded={() => {
+          const project = gateProject
+          const requestedStage = gateRequestedStage
+          setGateProject(null)
+          setGateRequestedStage(null)
+          if (project && requestedStage) requestStageChange(project, requestedStage, true)
+        }}
       />
 
       {detailProject && (

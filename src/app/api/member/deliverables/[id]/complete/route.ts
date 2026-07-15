@@ -1,20 +1,22 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { promises as fs } from 'fs'
-import { authOptions } from '@/lib/auth-options'
 import { createServerSupabaseClient } from '@/lib/server-supabase'
 import { extractVideoMetadata } from '@/lib/deliverable-storage'
 import { notifyDeliverableSubmitted } from '@/lib/notifications'
+import { resolveUploaderIdentity } from '@/lib/upload-identity'
 import path from 'path'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
+  const identity = await resolveUploaderIdentity(request)
+  if (!identity) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
   const { id } = await params
 
   const supabase = createServerSupabaseClient()
   const { data: deliverable } = await supabase.from('deliverables').select('*, submitted_by_member:editors(full_name), project:projects(client_name, commercial_id)').eq('id', id).single()
-  if (!deliverable || deliverable.submitted_by !== session.user.id || deliverable.status !== 'uploading') {
+  if (!deliverable || deliverable.status !== 'uploading') {
+    return NextResponse.json({ error: 'Upload introuvable.' }, { status: 404 })
+  }
+  if (!identity.privileged && deliverable.submitted_by !== identity.editorId) {
     return NextResponse.json({ error: 'Upload introuvable.' }, { status: 404 })
   }
 
@@ -52,7 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (error || !updated) return NextResponse.json({ error: 'Impossible de finaliser l’upload.' }, { status: 500 })
 
-  const memberName = (deliverable.submitted_by_member as { full_name?: string } | null)?.full_name ?? 'Un membre'
+  const memberName = (deliverable.submitted_by_member as { full_name?: string } | null)?.full_name ?? "L'administration"
   const projectInfo = deliverable.project as { client_name?: string; commercial_id?: string | null } | null
   const projectName = projectInfo?.client_name ?? 'Projet'
   await notifyDeliverableSubmitted(memberName, projectName, deliverable.version, projectInfo?.commercial_id)

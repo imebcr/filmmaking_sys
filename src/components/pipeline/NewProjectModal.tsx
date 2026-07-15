@@ -87,8 +87,10 @@ export default function NewProjectModal({ open, onClose }: Props) {
     setQuantity(1); setVideos([emptyVideoRow()]); setTeam({}); setMediaFaceName(''); setAttachedFiles([])
   }
 
+  const isValid = clientName.trim() !== '' && commercialId !== '' && videos.every((v) => v.project_type_id && v.deadline)
+
   const handleCreate = async () => {
-    if (!clientName.trim()) return
+    if (!isValid) return
     setSaving(true)
 
     const sharedStakeholders: Array<{ role: 'filmmaker' | 'scriptwriter' | 'voiceover' | 'media_face'; editor_id: string | null; name: string }> = TEAM_ROLES
@@ -172,9 +174,9 @@ export default function NewProjectModal({ open, onClose }: Props) {
             <input type="number" value={revisionsAllowed} onChange={(e) => setRevisionsAllowed(e.target.value)} min="0" />
           </div>
           <div>
-            <Label>Commercial responsable</Label>
+            <Label>Commercial responsable *</Label>
             <select value={commercialId} onChange={(e) => setCommercialId(e.target.value)}>
-              <option value="">Aucun</option>
+              <option value="">Sélectionner…</option>
               {commercials.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
             </select>
             {commercials.length === 0 && (
@@ -187,25 +189,21 @@ export default function NewProjectModal({ open, onClose }: Props) {
           </div>
         </div>
 
-        <SectionTitle>Vidéos {quantity > 1 && <span className="text-navy/35 normal-case font-normal">— type, deadline et prix par vidéo</span>}</SectionTitle>
+        <SectionTitle>Vidéos {quantity > 1 && <span className="text-navy/35 normal-case font-normal">— type et deadline par vidéo</span>}</SectionTitle>
         <div className="space-y-2">
           {videos.map((v, i) => (
-            <div key={i} className="glass-sm rounded-xl p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {quantity > 1 && <p className="sm:col-span-3 text-navy/45 text-xs font-semibold">Vidéo {i + 1}</p>}
+            <div key={i} className="glass-sm rounded-xl p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {quantity > 1 && <p className="sm:col-span-2 text-navy/45 text-xs font-semibold">Vidéo {i + 1}</p>}
               <div>
-                <Label>Type</Label>
+                <Label>Type *</Label>
                 <select value={v.project_type_id} onChange={(e) => updateVideo(i, 'project_type_id', e.target.value)} className="text-xs">
                   <option value="">Sélectionner…</option>
                   {projectTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
               <div>
-                <Label>Deadline</Label>
+                <Label>Deadline *</Label>
                 <input type="date" value={v.deadline} onChange={(e) => updateVideo(i, 'deadline', e.target.value)} className="text-xs" />
-              </div>
-              <div>
-                <Label>Prix (DA)</Label>
-                <input type="number" value={v.deal_price} onChange={(e) => updateVideo(i, 'deal_price', e.target.value)} min="0" className="text-xs" />
               </div>
             </div>
           ))}
@@ -311,7 +309,7 @@ export default function NewProjectModal({ open, onClose }: Props) {
           </button>
           <motion.button
             onClick={handleCreate}
-            disabled={!clientName.trim() || saving}
+            disabled={!isValid || saving}
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
             className="flex-1 py-2 rounded-xl bg-brand hover:bg-ocean text-white text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
           >

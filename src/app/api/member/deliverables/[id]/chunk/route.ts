@@ -1,24 +1,24 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { promises as fs } from 'fs'
-import { authOptions } from '@/lib/auth-options'
 import { createServerSupabaseClient } from '@/lib/server-supabase'
 import { partFileSize } from '@/lib/deliverable-storage'
+import { resolveUploaderIdentity, type UploaderIdentity } from '@/lib/upload-identity'
 
-async function loadOwnedUploadingDeliverable(id: string, memberId: string) {
+async function loadOwnedUploadingDeliverable(id: string, identity: UploaderIdentity) {
   const supabase = createServerSupabaseClient()
   const { data } = await supabase.from('deliverables').select('*').eq('id', id).single()
-  if (!data || data.submitted_by !== memberId || data.status !== 'uploading') return null
+  if (!data || data.status !== 'uploading') return null
+  if (!identity.privileged && data.submitted_by !== identity.editorId) return null
   return data
 }
 
 /** Returns the current byte offset written so far, so the client can resume after a cutout. */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
+  const identity = await resolveUploaderIdentity(request)
+  if (!identity) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
   const { id } = await params
 
-  const deliverable = await loadOwnedUploadingDeliverable(id, session.user.id)
+  const deliverable = await loadOwnedUploadingDeliverable(id, identity)
   if (!deliverable) return NextResponse.json({ error: 'Upload introuvable.' }, { status: 404 })
 
   const offset = await partFileSize(`${deliverable.file_path}.part`)
@@ -27,11 +27,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 /** Appends a chunk at the given offset. Rejects (409) if the offset doesn't match what's on disk, so the client re-syncs via GET. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
+  const identity = await resolveUploaderIdentity(request)
+  if (!identity) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
   const { id } = await params
 
-  const deliverable = await loadOwnedUploadingDeliverable(id, session.user.id)
+  const deliverable = await loadOwnedUploadingDeliverable(id, identity)
   if (!deliverable) return NextResponse.json({ error: 'Upload introuvable.' }, { status: 404 })
 
   const declaredOffset = Number(request.headers.get('x-upload-offset'))
