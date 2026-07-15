@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { Bell } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNotifications, notificationText } from '@/lib/use-notifications'
+
+const PANEL_WIDTH = 320
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -26,15 +29,42 @@ function linkFor(projectId: string | undefined, isMemberPortal: boolean): string
 export default function NotificationBell({ isMemberPortal = false }: { isMemberPortal?: boolean }) {
   const { notifications, mentions, unreadCount, markAllRead } = useNotifications()
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [rect, setRect] = useState<{ top: number; left: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  const updatePosition = () => {
+    const r = triggerRef.current?.getBoundingClientRect()
+    if (!r) return
+    // Right-align to the bell, but never let it run off either edge of the viewport
+    // (the bell lives in a narrow 224px sidebar — a naive right:0 anchor pushed the
+    // 320px panel off the left edge of the screen entirely).
+    const left = Math.min(Math.max(8, r.right - PANEL_WIDTH), window.innerWidth - PANEL_WIDTH - 8)
+    setRect({ top: r.bottom + 8, left })
+  }
+
+  useLayoutEffect(() => {
+    if (open) updatePosition()
+  }, [open])
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+        && panelRef.current && !panelRef.current.contains(e.target as Node)
+      ) setOpen(false)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+    const handleReposition = () => updatePosition()
+    document.addEventListener('mousedown', handleClick)
+    window.addEventListener('scroll', handleReposition, true)
+    window.addEventListener('resize', handleReposition)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('scroll', handleReposition, true)
+      window.removeEventListener('resize', handleReposition)
+    }
+  }, [open])
 
   const items = [
     ...notifications.map((n) => ({
@@ -54,10 +84,10 @@ export default function NotificationBell({ isMemberPortal = false }: { isMemberP
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   return (
-    <div ref={ref} className="relative">
-      <motion.button
+    <>
+      <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
-        whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
         className="relative p-2 rounded-xl text-navy/50 hover:text-navy hover:bg-white/50 transition-colors"
       >
         <Bell size={16} />
@@ -66,46 +96,54 @@ export default function NotificationBell({ isMemberPortal = false }: { isMemberP
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
-      </motion.button>
+      </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ type: 'spring' as const, stiffness: 400, damping: 30 }}
-            className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl border border-white/65 z-50"
-            style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', boxShadow: '0 12px 40px rgba(10,96,173,0.18)' }}
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/50">
-              <p className="text-navy font-semibold text-sm">Notifications</p>
-              {unreadCount > 0 && (
-                <button onClick={markAllRead} className="text-[11px] text-brand hover:text-ocean font-medium">
-                  Tout marquer comme lu
-                </button>
-              )}
-            </div>
-            {items.length === 0 ? (
-              <p className="text-navy/35 text-xs text-center py-8">Aucune notification.</p>
-            ) : (
-              <div className="divide-y divide-white/40">
-                {items.map((item) => (
-                  <Link
-                    key={item.key}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={`block px-4 py-3 text-xs hover:bg-brand/5 transition-colors ${!item.read ? 'bg-brand/5' : ''}`}
-                  >
-                    <p className="text-navy/80 leading-snug">{item.text}</p>
-                    <p className="text-navy/35 text-[10px] mt-1">{timeAgo(item.createdAt)}</p>
-                  </Link>
-                ))}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {open && rect && (
+            <motion.div
+              ref={panelRef}
+              initial={{ opacity: 0, y: -8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              transition={{ type: 'spring' as const, stiffness: 400, damping: 30 }}
+              className="fixed z-[9999] rounded-2xl border border-white/65 flex flex-col"
+              style={{
+                top: rect.top, left: rect.left, width: PANEL_WIDTH, maxHeight: 420,
+                background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: '0 12px 40px rgba(10,96,173,0.18)',
+              }}
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/50 shrink-0">
+                <p className="text-navy font-semibold text-sm">Notifications</p>
+                {unreadCount > 0 && (
+                  <button onClick={markAllRead} className="text-[11px] text-brand hover:text-ocean font-medium">
+                    Tout marquer comme lu
+                  </button>
+                )}
               </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+              {items.length === 0 ? (
+                <p className="text-navy/35 text-xs text-center py-8">Aucune notification.</p>
+              ) : (
+                <div className="overflow-y-auto flex-1 divide-y divide-white/40">
+                  {items.map((item) => (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      onClick={() => setOpen(false)}
+                      className={`block px-4 py-3 text-xs hover:bg-brand/5 transition-colors ${!item.read ? 'bg-brand/5' : ''}`}
+                    >
+                      <p className="text-navy/80 leading-snug">{item.text}</p>
+                      <p className="text-navy/35 text-[10px] mt-1">{timeAgo(item.createdAt)}</p>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+    </>
   )
 }
