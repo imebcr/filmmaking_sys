@@ -184,7 +184,8 @@ export interface Stakeholder {
 
 export interface EditorAssignment {
   id: string
-  editor_id: string
+  editor_id: string | null
+  editor_name: string
   project_id: string
   start_date: string
   end_date: string

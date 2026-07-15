@@ -28,13 +28,42 @@ function downloadHref(deliverableId: string): string {
   return `/api/deliverables/${deliverableId}/file?download=1`
 }
 
+// navigator.clipboard is only available in secure contexts (HTTPS or localhost) — this
+// server runs over plain HTTP, so it falls back to the legacy execCommand approach.
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      // fall through to legacy method
+    }
+  }
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return ok
+  } catch {
+    return false
+  }
+}
+
 function CopyDownloadLink({ deliverableId }: { deliverableId: string }) {
   const [copied, setCopied] = useState(false)
-  const handleCopy = () => {
+  const handleCopy = async () => {
     const url = `${window.location.origin}${downloadHref(deliverableId)}`
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    const ok = await copyToClipboard(url)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
   }
   return (
     <div className="flex items-center gap-1 shrink-0">
@@ -256,7 +285,7 @@ export default function DeliverablePanel({ project }: { project: Project }) {
                   ) : shareUrl ? (
                     <div className="flex items-center gap-2">
                       <input readOnly value={shareUrl} className="text-xs flex-1" />
-                      <button onClick={() => navigator.clipboard.writeText(shareUrl)} className="p-2 rounded-xl text-navy/40 hover:text-brand hover:bg-brand/10 transition-colors">
+                      <button onClick={() => copyToClipboard(shareUrl)} className="p-2 rounded-xl text-navy/40 hover:text-brand hover:bg-brand/10 transition-colors">
                         <Copy size={13} />
                       </button>
                     </div>

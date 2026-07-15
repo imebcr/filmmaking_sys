@@ -45,7 +45,8 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
     opacity: isDragging ? 0 : 1,
   }
 
-  const editor = (project.editor_assignments ?? [])[0]?.editor
+  const editorAssignment = (project.editor_assignments ?? [])[0]
+  const editorName = editorAssignment?.editor?.full_name || editorAssignment?.editor_name
 
   const isActiveStage = DELIVERABLE_STAGES.includes(project.stage)
   const pendingDeliverable = (project.deliverables ?? []).some((d) => d.stage === project.stage && d.status === 'submitted')
@@ -173,10 +174,10 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
         </div>
 
         {/* Editor */}
-        {(project.stage === 'editing' || project.stage === 'delivered') && editor && (
+        {(project.stage === 'editing' || project.stage === 'delivered') && editorName && (
           <div className="flex items-center gap-1 text-navy/50 text-xs mb-2">
             <User size={11} />
-            <span className="truncate">{editor.full_name}</span>
+            <span className="truncate">{editorName}</span>
           </div>
         )}
 

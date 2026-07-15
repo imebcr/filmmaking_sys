@@ -165,7 +165,8 @@ CREATE TABLE project_stakeholders (
 -- ─── editor_assignments ──────────────────────────────────────
 CREATE TABLE editor_assignments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  editor_id UUID NOT NULL REFERENCES editors(id) ON DELETE CASCADE,
+  editor_id UUID REFERENCES editors(id) ON DELETE SET NULL,
+  editor_name TEXT NOT NULL DEFAULT '',
   project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   start_date TIMESTAMP WITH TIME ZONE NOT NULL,
   end_date TIMESTAMP WITH TIME ZONE NOT NULL,

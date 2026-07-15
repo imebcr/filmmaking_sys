@@ -41,6 +41,7 @@ export interface ProjectBatchInput {
 interface AppContextType {
   projects: Project[]
   editors: Editor[]
+  inactiveEditors: Editor[]
   projectTypes: ProjectType[]
   editorAssignments: EditorAssignment[]
   contacts: Contact[]
@@ -56,7 +57,8 @@ interface AppContextType {
 
   createEditor: (data: Partial<Editor>) => Promise<{ editor: Editor | null; error: string | null }>
   updateEditor: (id: string, data: Partial<Editor>) => Promise<string | null>
-  deleteEditor: (id: string) => Promise<void>
+  deleteEditor: (id: string) => Promise<string | null>
+  setEditorActive: (id: string, active: boolean) => Promise<string | null>
 
   createProjectType: (data: Partial<ProjectType>) => Promise<ProjectType | null>
   updateProjectType: (id: string, data: Partial<ProjectType>) => Promise<void>
@@ -78,6 +80,7 @@ const AppContext = createContext<AppContextType | null>(null)
 export function AppProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [editors, setEditors] = useState<Editor[]>([])
+  const [inactiveEditors, setInactiveEditors] = useState<Editor[]>([])
   const [projectTypes, setProjectTypes] = useState<ProjectType[]>([])
   const [editorAssignments, setEditorAssignments] = useState<EditorAssignment[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -86,12 +89,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refetch = useCallback(async () => {
     try {
-      const [projectsRes, editorsRes, typesRes, assignmentsRes, contactsRes] = await Promise.all([
+      const [projectsRes, editorsRes, inactiveEditorsRes, typesRes, assignmentsRes, contactsRes] = await Promise.all([
         supabase
           .from('projects')
           .select('*, project_type:project_types(*), stakeholders:project_stakeholders(*), editor_assignments(*, editor:editors(*)), deliverables(*, submitted_by_member:editors(*)), project_files(*)')
           .order('created_at', { ascending: false }),
         supabase.from('editors').select('*').eq('is_active', true).order('full_name'),
+        supabase.from('editors').select('*').eq('is_active', false).order('full_name'),
         supabase.from('project_types').select('*').order('name'),
         supabase
           .from('editor_assignments')
@@ -102,12 +106,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (projectsRes.error) throw projectsRes.error
       if (editorsRes.error) throw editorsRes.error
+      if (inactiveEditorsRes.error) throw inactiveEditorsRes.error
       if (typesRes.error) throw typesRes.error
       if (assignmentsRes.error) throw assignmentsRes.error
       if (contactsRes.error) throw contactsRes.error
 
       setProjects((projectsRes.data as Project[]) ?? [])
       setEditors((editorsRes.data as Editor[]) ?? [])
+      setInactiveEditors((inactiveEditorsRes.data as Editor[]) ?? [])
       setProjectTypes((typesRes.data as ProjectType[]) ?? [])
       setEditorAssignments((assignmentsRes.data as EditorAssignment[]) ?? [])
       setContacts((contactsRes.data as Contact[]) ?? [])
@@ -277,10 +283,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return null
   }
 
-  const deleteEditor = async (id: string) => {
-    const { error } = await supabase.from('editors').update({ is_active: false }).eq('id', id)
-    if (error) console.error(error)
+  // Permanent — the editor row is actually gone. project_stakeholders.name and
+  // editor_assignments.editor_name are stored separately so past project history stays readable.
+  const deleteEditor = async (id: string): Promise<string | null> => {
+    const { error } = await supabase.from('editors').delete().eq('id', id)
+    if (error) { console.error(error); return error.message }
     await refetch()
+    return null
+  }
+
+  const setEditorActive = async (id: string, active: boolean): Promise<string | null> => {
+    const { error } = await supabase.from('editors').update({ is_active: active }).eq('id', id)
+    if (error) { console.error(error); return error.message }
+    await refetch()
+    return null
   }
 
   // ── Project type mutations ───────────────────────────────────
@@ -396,10 +412,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider
       value={{
-        projects, editors, projectTypes, editorAssignments, contacts,
+        projects, editors, inactiveEditors, projectTypes, editorAssignments, contacts,
         loading, error, refetch,
         createProject, createProjectBatch, updateProject, deleteProject, duplicateProject,
-        createEditor, updateEditor, deleteEditor,
+        createEditor, updateEditor, deleteEditor, setEditorActive,
         createProjectType, updateProjectType, deleteProjectType,
         saveStakeholders,
         createAssignment, updateAssignment, deleteAssignment,

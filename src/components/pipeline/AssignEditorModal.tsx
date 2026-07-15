@@ -47,11 +47,13 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
 
   const handleConfirm = async () => {
     if (!editorId) return
+    const editor = eligibleEditors.find((e) => e.id === editorId)
     setSaving(true)
     try {
       await updateProject(project.id, { stage: 'editing' })
       await createAssignment({
         editor_id: editorId,
+        editor_name: editor?.full_name ?? '',
         project_id: project.id,
         start_date: startDt.toISOString(),
         end_date: endDt.toISOString(),

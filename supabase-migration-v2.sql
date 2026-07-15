@@ -152,4 +152,16 @@ ALTER TABLE project_files DISABLE ROW LEVEL SECURITY;
 ALTER TABLE editors DROP CONSTRAINT IF EXISTS editors_email_key;
 CREATE UNIQUE INDEX IF NOT EXISTS editors_email_active_key ON editors(email) WHERE is_active = true;
 
+-- ─── editor_assignments — survive a hard-deleted editor ─────
+-- "Delete" on a team member is now a real DELETE FROM editors (not a soft flag), so any
+-- assignment they had must keep a name snapshot instead of relying on the FK join, and the
+-- FK itself must not cascade-delete the assignment row (that would erase Kanban history).
+ALTER TABLE editor_assignments ADD COLUMN IF NOT EXISTS editor_name TEXT NOT NULL DEFAULT '';
+UPDATE editor_assignments ea SET editor_name = e.full_name
+  FROM editors e WHERE ea.editor_id = e.id AND ea.editor_name = '';
+ALTER TABLE editor_assignments ALTER COLUMN editor_id DROP NOT NULL;
+ALTER TABLE editor_assignments DROP CONSTRAINT IF EXISTS editor_assignments_editor_id_fkey;
+ALTER TABLE editor_assignments ADD CONSTRAINT editor_assignments_editor_id_fkey
+  FOREIGN KEY (editor_id) REFERENCES editors(id) ON DELETE SET NULL;
+
 -- ─── done ────────────────────────────────────────────────────

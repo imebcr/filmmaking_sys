@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, Check, X, Send, KeyRound, Ban, PlayCircle } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Send, KeyRound, Ban, PlayCircle, UserMinus, UserCheck } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { EditorSpecialty, TeamMemberRole, ContractType, TeamMemberAccountStatus } from '@/lib/types'
 import { SPECIALTY_LABELS, TEAM_MEMBER_ROLES, TEAM_MEMBER_ROLE_LABELS } from '@/lib/types'
@@ -157,11 +157,12 @@ function EditorForm({ initial, onSave, onCancel }: {
 }
 
 export default function EditorRoster() {
-  const { editors, createEditor, updateEditor, deleteEditor } = useApp()
+  const { editors, inactiveEditors, createEditor, updateEditor, deleteEditor, setEditorActive } = useApp()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [roleFilter, setRoleFilter] = useState<TeamMemberRole | ''>('')
+  const [showInactive, setShowInactive] = useState(false)
   const [actionState, setActionState] = useState<Record<string, string>>({})
 
   const setActionMsg = (id: string, msg: string) => {
@@ -204,8 +205,19 @@ export default function EditorRoster() {
   }
 
   const handleDelete = async (id: string) => {
-    await deleteEditor(id)
+    const error = await deleteEditor(id)
     setConfirmDelete(null)
+    if (error) setActionMsg(id, `Échec de la suppression : ${error}`)
+  }
+
+  const handleDeactivate = async (id: string) => {
+    const error = await setEditorActive(id, false)
+    setActionMsg(id, error ? `Échec : ${error}` : 'Membre désactivé')
+  }
+
+  const handleReactivate = async (id: string) => {
+    const error = await setEditorActive(id, true)
+    setActionMsg(id, error ? `Échec : ${error}` : 'Membre réactivé')
   }
 
   const handleInvite = async (id: string) => {
@@ -229,13 +241,18 @@ export default function EditorRoster() {
     setActionMsg(id, res.ok ? (suspend ? 'Membre suspendu' : 'Membre réactivé') : 'Échec')
   }
 
-  const filtered = roleFilter ? editors.filter((e) => (e.roles ?? []).includes(roleFilter)) : editors
+  const baseList = showInactive ? [...editors, ...inactiveEditors] : editors
+  const filtered = roleFilter ? baseList.filter((e) => (e.roles ?? []).includes(roleFilter)) : baseList
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 className="text-navy font-bold">Team Members ({filtered.length})</h2>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-navy/55 cursor-pointer select-none">
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="w-auto" />
+            Afficher les désactivés
+          </label>
           <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as TeamMemberRole | '')} className="text-xs" style={{ width: 'auto' }}>
             <option value="">Tous les rôles</option>
             {TEAM_MEMBER_ROLES.map((r) => <option key={r} value={r}>{TEAM_MEMBER_ROLE_LABELS[r]}</option>)}
@@ -294,6 +311,11 @@ export default function EditorRoster() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-navy font-semibold text-sm">{editor.full_name}</p>
+                        {!editor.is_active && (
+                          <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 bg-gray-200 text-gray-500 border border-gray-300">
+                            Désactivé
+                          </span>
+                        )}
                         <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 border ${STATUS_STYLES[editor.account_status]}`}>
                           {STATUS_LABELS[editor.account_status]}
                         </span>
@@ -352,6 +374,25 @@ export default function EditorRoster() {
                           <Ban size={13} />
                         </motion.button>
                       )}
+                      {editor.is_active ? (
+                        <motion.button
+                          onClick={() => handleDeactivate(editor.id)}
+                          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                          title="Désactiver (masqué mais récupérable)"
+                          className="p-1.5 rounded-xl text-navy/35 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        >
+                          <UserMinus size={13} />
+                        </motion.button>
+                      ) : (
+                        <motion.button
+                          onClick={() => handleReactivate(editor.id)}
+                          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                          title="Réactiver"
+                          className="p-1.5 rounded-xl text-navy/35 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        >
+                          <UserCheck size={13} />
+                        </motion.button>
+                      )}
                       <motion.button
                         onClick={() => setEditingId(editor.id)}
                         whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
@@ -361,6 +402,7 @@ export default function EditorRoster() {
                       </motion.button>
                       {confirmDelete === editor.id ? (
                         <div className="flex items-center gap-1">
+                          <span className="text-red-500 text-[11px] font-medium">Suppression définitive !</span>
                           <button onClick={() => handleDelete(editor.id)} className="px-2 py-1 rounded-lg bg-red-500 text-white text-xs font-medium">
                             Confirmer
                           </button>
@@ -372,6 +414,7 @@ export default function EditorRoster() {
                         <motion.button
                           onClick={() => setConfirmDelete(editor.id)}
                           whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                          title="Supprimer définitivement"
                           className="p-1.5 rounded-xl text-navy/35 hover:text-red-500 hover:bg-red-50 transition-colors"
                         >
                           <Trash2 size={13} />
