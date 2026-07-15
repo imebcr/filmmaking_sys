@@ -87,9 +87,22 @@ async function getProjectParticipants(projectId) {
   return Array.from(participants.entries()).map(([id, name]) => ({ id, name }))
 }
 
-async function getProjectName(projectId) {
-  const { data } = await supabase.from('projects').select('client_name').eq('id', projectId).single()
-  return data?.client_name ?? 'un projet'
+// Mirrors STAGE_LABELS in src/lib/types.ts — duplicated since this process can't import
+// across the Next.js build boundary.
+const STAGE_LABELS = {
+  incoming: 'Incoming',
+  'pre-production': 'Pré-production',
+  shooting: 'Tournage',
+  editing: 'Montage',
+  delivered: 'Livré',
+}
+
+async function getProjectInfo(projectId) {
+  const { data } = await supabase.from('projects').select('client_name, stage').eq('id', projectId).single()
+  return {
+    name: data?.client_name ?? 'un projet',
+    stageLabel: data?.stage ? (STAGE_LABELS[data.stage] ?? data.stage) : null,
+  }
 }
 
 // Telegram chat id + preference for each mentioned editor, so the server can notify them.
@@ -104,4 +117,4 @@ async function getTelegramTargets(editorIds) {
     .map((e) => ({ id: e.id, chatId: e.telegram_chat_id }))
 }
 
-module.exports = { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectName, getTelegramTargets, supabase }
+module.exports = { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectInfo, getTelegramTargets, supabase }

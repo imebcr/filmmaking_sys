@@ -47,7 +47,13 @@ export default function AdminDeliverableUpload({ projectId, stage, onUploaded, l
 
   return (
     <div className="glass-sm rounded-xl p-3 space-y-2">
-      <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-xs" />
+      <input id={`admin-upload-${projectId}-${stage}`} type="file" hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      <label
+        htmlFor={`admin-upload-${projectId}-${stage}`}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-silver text-navy/60 hover:text-navy hover:bg-white/50 text-xs font-semibold cursor-pointer transition-colors"
+      >
+        <UploadCloud size={13} /> {file ? file.name : 'Choisir un fichier'}
+      </label>
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}

@@ -39,12 +39,19 @@ export function hasDeliverableForCurrentStage(project: Project): boolean {
   return (project.deliverables ?? []).some((d) => d.stage === project.stage && d.status !== 'uploading')
 }
 
-// Whether every role needed for a target stage was already decided up front (at creation/edit).
+// Whether a target stage's assignment is already settled — for pre-production, only one of
+// script writer/voice over is ever required (e.g. a project needing just a voiceover doesn't
+// also need a script writer), so any one of the stage's roles being filled is sufficient.
 export function stageRolesAlreadyAssigned(project: Project, stage: ProjectStage): boolean {
   const roles = STAGE_ROLES[stage]
   if (!roles || roles.length === 0) return true
-  return roles.every((role) => {
+  return roles.some((role) => {
     const stakeholderRole = ROLE_TO_STAKEHOLDER[role]
     return (project.stakeholders ?? []).some((s) => s.role === stakeholderRole && s.editor_id)
   })
+}
+
+// Amber-highlighted, sorted-first state — a submitted deliverable is waiting on a decision.
+export function hasPendingDeliverable(project: Project): boolean {
+  return (project.deliverables ?? []).some((d) => d.stage === project.stage && d.status === 'submitted')
 }

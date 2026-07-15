@@ -23,6 +23,8 @@ interface Props {
   project: Project
   onClose: () => void
   onSwitchProject?: (id: string) => void
+  /** Opened from a notification-bell @mention deep link — jump straight to the discussion. */
+  scrollToChat?: boolean
 }
 
 const Label = ({ children }: { children: React.ReactNode }) => (
@@ -33,9 +35,16 @@ const SectionTitle = ({ children }: { children: React.ReactNode }) => (
   <h3 className="text-xs font-bold text-navy/40 uppercase tracking-wider mb-3">{children}</h3>
 )
 
-export default function ProjectDetailModal({ project, onClose, onSwitchProject }: Props) {
+export default function ProjectDetailModal({ project, onClose, onSwitchProject, scrollToChat }: Props) {
   const { projects, projectTypes, editors, updateProject, deleteProject, saveStakeholders, updateAssignment } = useApp()
   const orderSiblings = project.order_id ? projects.filter((p) => p.id !== project.id && p.order_id === project.order_id) : []
+
+  // Content (and the modal's own open/scale animation) needs a beat to settle before scrolling.
+  useEffect(() => {
+    if (!scrollToChat) return
+    const t = setTimeout(() => document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' }), 150)
+    return () => clearTimeout(t)
+  }, [scrollToChat])
 
   const [clientName, setClientName] = useState(project.client_name)
   const [projectTypeId, setProjectTypeId] = useState(project.project_type_id ?? '')

@@ -75,7 +75,7 @@ export default function ProjectChatPanel({ projectId, participants }: { projectI
     : []
 
   return (
-    <section>
+    <section id="chat">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-bold text-navy/40 uppercase tracking-wider flex items-center gap-1.5">
           <MessageCircle size={13} /> Discussion

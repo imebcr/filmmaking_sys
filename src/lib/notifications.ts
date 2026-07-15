@@ -72,10 +72,26 @@ export async function notify(params: NotifyParams): Promise<void> {
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL
 const ADMIN_TELEGRAM_CHAT_ID = process.env.ADMIN_TELEGRAM_CHAT_ID
 
+// Admin isn't a row in `editors` by default (Supabase Auth, separate from team members) —
+// but each admin gets one auto-provisioned on login (see /api/admin/ensure-commercial-identity),
+// linked by email. Used so admin-targeted events show up in their notification bell too,
+// not just via the ADMIN_NOTIFICATION_EMAIL/ADMIN_TELEGRAM_CHAT_ID env-var channels.
+async function getAdminEditorIds(): Promise<string[]> {
+  const supabase = createServerSupabaseClient()
+  const { data: authData, error } = await supabase.auth.admin.listUsers()
+  if (error) { console.warn('[notify] could not list Supabase Auth admins:', error.message); return [] }
+  const emails = authData.users.map((u) => u.email).filter((e): e is string => Boolean(e))
+  if (emails.length === 0) return []
+  const { data: editors } = await supabase.from('editors').select('id, email').in('email', emails)
+  return (editors ?? []).map((e) => e.id)
+}
+
 /**
  * Admin isn't a row in `editors` (admin auth is Supabase Auth, separate from
  * team members) — notified directly via ADMIN_NOTIFICATION_EMAIL /
  * ADMIN_TELEGRAM_CHAT_ID rather than through the per-member preference/quiet-hours logic.
+ * Also recorded per-admin (bell-only, no extra email/telegram) so it shows up for
+ * whichever admin(s) are actually logged in, regardless of whether those env vars are set.
  */
 async function notifyAdmin(eventType: string, payload: Record<string, unknown>, sendEmail: () => Promise<unknown>, telegramText: string) {
   const supabase = createServerSupabaseClient()
@@ -97,6 +113,19 @@ async function notifyAdmin(eventType: string, payload: Record<string, unknown>, 
     payload,
     delivery_status: channels.length > 0 ? 'sent' : 'failed',
   })
+
+  const adminEditorIds = await getAdminEditorIds()
+  if (adminEditorIds.length > 0) {
+    await supabase.from('notifications').insert(
+      adminEditorIds.map((recipient_id) => ({
+        recipient_id,
+        event_type: eventType,
+        channels: [],
+        payload,
+        delivery_status: 'sent',
+      })),
+    )
+  }
 }
 
 export async function notifyInvitationSent(memberId: string, email: string, token: string, memberName: string) {
@@ -131,14 +160,12 @@ export async function notifyDeadline24h(memberId: string, projectName: string, p
 }
 
 export async function notifyDeliverableSubmitted(memberName: string, projectName: string, version: number, commercialId?: string | null, projectId?: string) {
-  if (ADMIN_EMAIL) {
-    await notifyAdmin(
-      'deliverable_submitted',
-      { memberName, projectName, version, projectId },
-      () => sendDeliverableSubmittedEmail(ADMIN_EMAIL, memberName, projectName, version),
-      `📥 ${memberName} a soumis la v${version} pour <b>${projectName}</b>.`,
-    )
-  }
+  await notifyAdmin(
+    'deliverable_submitted',
+    { memberName, projectName, version, projectId },
+    () => sendDeliverableSubmittedEmail(ADMIN_EMAIL!, memberName, projectName, version),
+    `📥 ${memberName} a soumis la v${version} pour <b>${projectName}</b>.`,
+  )
   if (commercialId) {
     await notify({
       recipientId: commercialId,
@@ -172,11 +199,10 @@ export async function notifyDeliverableRejected(memberId: string, projectName: s
 }
 
 export async function notifyDailyRiskSummary(projects: Array<{ name: string; daysLeft: number }>) {
-  if (!ADMIN_EMAIL) return
   await notifyAdmin(
     'deadline_summary',
     { count: projects.length },
-    () => sendDailyRiskSummaryEmail(ADMIN_EMAIL, projects),
+    () => sendDailyRiskSummaryEmail(ADMIN_EMAIL!, projects),
     `📊 Résumé quotidien : ${projects.length} projet(s) à risque.`,
   )
 }

@@ -19,11 +19,13 @@ function timeAgo(iso: string): string {
   return `il y a ${Math.round(hours / 24)}j`
 }
 
-// admin/commercial land on the board (no per-project deep link there yet);
-// team members go straight to their project page.
-function linkFor(projectId: string | undefined, isMemberPortal: boolean): string {
+// team members go straight to their project page; admin/commercial deep-link into
+// the board which opens that project's modal (see Pipeline's ?project= handling).
+// `chat` additionally scrolls straight to the discussion (used for @mentions).
+function linkFor(projectId: string | undefined, isMemberPortal: boolean, chat = false): string {
   if (!projectId) return isMemberPortal ? '/me' : '/pipeline'
-  return isMemberPortal ? `/me/projects/${projectId}` : '/pipeline'
+  if (isMemberPortal) return chat ? `/me/projects/${projectId}#chat` : `/me/projects/${projectId}`
+  return chat ? `/pipeline?project=${projectId}&chat=1` : `/pipeline?project=${projectId}`
 }
 
 export default function NotificationBell({ isMemberPortal = false }: { isMemberPortal?: boolean }) {
@@ -77,7 +79,7 @@ export default function NotificationBell({ isMemberPortal = false }: { isMemberP
     ...mentions.map((m) => ({
       key: `m-${m.id}`,
       text: `${m.senderName} vous a mentionné : ${m.body}`,
-      href: linkFor(m.projectId, isMemberPortal),
+      href: linkFor(m.projectId, isMemberPortal, true),
       createdAt: m.createdAt,
       read: m.read,
     })),

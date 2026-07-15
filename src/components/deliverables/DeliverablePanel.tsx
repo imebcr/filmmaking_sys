@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, X, Eye, FileText, Music, Video, Image as ImageIcon, Link2, Copy, Ban, AlertTriangle, Download } from 'lucide-react'
+import { Check, X, Eye, FileText, Music, Video, Image as ImageIcon, Link2, Copy, Ban, AlertTriangle, Download, CheckCheck } from 'lucide-react'
 import type { Project, Deliverable, ProjectStage } from '@/lib/types'
 import { DELIVERABLE_STAGES, STAGE_LABELS } from '@/lib/types'
 import { adminFetch } from '@/lib/admin-fetch'
@@ -106,16 +106,35 @@ function statusBadge(status: Deliverable['status']) {
   return <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 border shrink-0 ${cls}`}>{label}</span>
 }
 
+function preview(d: Deliverable) {
+  const href = fileHref(d.id, d.download_token)
+  if (d.mime_type.startsWith('video/')) {
+    return <video controls className="w-full rounded-lg max-h-56 bg-black" src={href} poster={d.thumbnail_path ? fileHref(d.id, d.download_token, { thumbnail: true }) : undefined} />
+  }
+  if (d.mime_type.startsWith('audio/')) {
+    return <audio controls className="w-full" src={href} />
+  }
+  if (d.mime_type.startsWith('image/')) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={href} alt="Aperçu" className="w-full rounded-lg max-h-56 object-contain bg-navy/5" />
+  }
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-brand text-xs font-semibold hover:text-ocean">
+      <Eye size={13} /> Ouvrir le fichier
+    </a>
+  )
+}
+
 // Read-only history block for a stage the project has already moved past (or hasn't reached yet
 // as the active stage) — download links stay available even after the project is fully delivered.
 // Admin/commercial can still add a deliverable here on someone's behalf, at any stage.
-function PastStageBlock({ projectId, stage, deliverables }: { projectId: string; stage: ProjectStage; deliverables: Deliverable[] }) {
+function PastStageBlock({ projectId, stage, deliverables, canUpload }: { projectId: string; stage: ProjectStage; deliverables: Deliverable[]; canUpload: boolean }) {
   const sorted = [...deliverables].sort((a, b) => b.version - a.version)
   return (
     <div className="glass-sm rounded-xl p-3 space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-navy/50 text-xs font-semibold">{STAGE_LABELS[stage]}</p>
-        <AdminDeliverableUpload projectId={projectId} stage={stage} label="Envoyer" />
+        {canUpload && <AdminDeliverableUpload projectId={projectId} stage={stage} label="Envoyer" />}
       </div>
       <div className="space-y-1.5">
         {sorted.map((d) => {
@@ -137,28 +156,29 @@ function PastStageBlock({ projectId, stage, deliverables }: { projectId: string;
 }
 
 export default function DeliverablePanel({ project }: { project: Project }) {
-  const [rejecting, setRejecting] = useState(false)
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [reason, setReason] = useState(REJECTION_REASONS[0])
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const canUploadHere = project.stage !== 'delivered'
   const activeStage = DELIVERABLE_STAGES.includes(project.stage) ? project.stage : null
   const byStage = (stage: ProjectStage) => (project.deliverables ?? []).filter((d) => d.stage === stage)
   const otherStages = DELIVERABLE_STAGES.filter((s) => s !== activeStage && byStage(s).length > 0)
 
   const stageDeliverables = activeStage ? byStage(activeStage).sort((a, b) => b.version - a.version) : []
-  const current = stageDeliverables[0]
-  const history = stageDeliverables.slice(1)
+  const latestBatchId = stageDeliverables[0]?.batch_id
+  const pendingBatch = stageDeliverables.filter((d) => d.batch_id === latestBatchId && d.status === 'submitted')
+  const singleLatest = pendingBatch.length === 0 ? stageDeliverables[0] : undefined
+  const shownIds = new Set(pendingBatch.length > 0 ? pendingBatch.map((d) => d.id) : singleLatest ? [singleLatest.id] : [])
+  const history = stageDeliverables.filter((d) => !shownIds.has(d.id))
 
   const nearLimit = project.revisions_allowed > 0 && project.revision_count >= project.revisions_allowed
 
-  const handleDecision = async (decision: 'validate' | 'reject') => {
-    if (!current) return
-    setBusy(true)
-    setError(null)
-    const res = await adminFetch(`/api/admin/deliverables/${current.id}/decision`, {
+  const runDecision = async (deliverableId: string, decision: 'validate' | 'reject') => {
+    const res = await adminFetch(`/api/admin/deliverables/${deliverableId}/decision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -168,16 +188,40 @@ export default function DeliverablePanel({ project }: { project: Project }) {
       }),
     })
     const result = await res.json().catch(() => ({}))
+    return { ok: res.ok, error: result?.error as string | undefined }
+  }
+
+  const handleReject = async (deliverableId: string) => {
+    setBusy(true)
+    setError(null)
+    const { ok, error: err } = await runDecision(deliverableId, 'reject')
     setBusy(false)
-    if (!res.ok) { setError(result?.error ?? 'Échec de la décision.'); return }
-    setRejecting(false)
+    if (!ok) { setError(err ?? 'Échec de la décision.'); return }
+    setRejectingId(null)
     setComment('')
   }
 
-  const handleShare = async () => {
-    if (!current) return
+  const handleValidateOne = async (deliverableId: string) => {
     setBusy(true)
-    const res = await adminFetch(`/api/admin/deliverables/${current.id}/share`, {
+    setError(null)
+    const { ok, error: err } = await runDecision(deliverableId, 'validate')
+    setBusy(false)
+    if (!ok) setError(err ?? 'Échec de la décision.')
+  }
+
+  const handleValidateAll = async () => {
+    setBusy(true)
+    setError(null)
+    for (const d of pendingBatch) {
+      const { ok, error: err } = await runDecision(d.id, 'validate')
+      if (!ok) { setError(err ?? 'Échec de la décision.'); setBusy(false); return }
+    }
+    setBusy(false)
+  }
+
+  const handleShare = async (deliverableId: string) => {
+    setBusy(true)
+    const res = await adminFetch(`/api/admin/deliverables/${deliverableId}/share`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ days: 30 }),
@@ -187,17 +231,14 @@ export default function DeliverablePanel({ project }: { project: Project }) {
     if (res.ok) setShareUrl(result.url)
   }
 
-  const handleRevoke = async () => {
-    if (!current) return
+  const handleRevoke = async (deliverableId: string) => {
     setBusy(true)
-    await adminFetch(`/api/admin/deliverables/${current.id}/share`, { method: 'DELETE' })
+    await adminFetch(`/api/admin/deliverables/${deliverableId}/share`, { method: 'DELETE' })
     setBusy(false)
     setShareUrl(null)
   }
 
   if (!activeStage && otherStages.length === 0) return null
-
-  const Icon = current ? fileIcon(current.mime_type) : FileText
 
   return (
     <section className="space-y-3">
@@ -206,7 +247,10 @@ export default function DeliverablePanel({ project }: { project: Project }) {
       {activeStage && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-navy/50 text-xs font-semibold">{STAGE_LABELS[activeStage]} (étape en cours)</p>
+            <p className="text-navy/50 text-xs font-semibold">
+              {STAGE_LABELS[activeStage]} (étape en cours)
+              {pendingBatch.length > 1 && <span className="text-brand"> · {pendingBatch.length} fichiers à valider</span>}
+            </p>
             {nearLimit && (
               <span className="flex items-center gap-1 text-[10px] font-semibold text-red-500">
                 <AlertTriangle size={11} /> Limite de révisions atteinte ({project.revision_count}/{project.revisions_allowed})
@@ -214,117 +258,138 @@ export default function DeliverablePanel({ project }: { project: Project }) {
             )}
           </div>
 
-          {!current ? (
+          {stageDeliverables.length === 0 ? (
             <div className="glass-sm rounded-xl p-4 space-y-2">
               <p className="text-navy/40 text-sm">Aucune soumission pour cette étape pour le moment.</p>
-              <AdminDeliverableUpload projectId={project.id} stage={activeStage} label="Envoyer un livrable" />
+              {canUploadHere && <AdminDeliverableUpload projectId={project.id} stage={activeStage} label="Envoyer un livrable" />}
             </div>
           ) : (
-            <div className="glass-sm rounded-xl p-4 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center text-brand shrink-0">
-                  <Icon size={18} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-navy font-semibold text-sm">Version {current.version}</p>
-                  <p className="text-navy/45 text-xs mt-0.5">
-                    {formatBytes(current.size_bytes)} · {current.mime_type}
-                    {current.duration_seconds ? ` · ${Math.round(current.duration_seconds)}s` : ''} · {formatDate(current.submitted_at)}
-                  </p>
-                  {current.notes && <p className="text-navy/55 text-xs mt-1.5 italic">« {current.notes} »</p>}
-                </div>
-                {statusBadge(current.status)}
-              </div>
-
-              <div className="flex items-center justify-end">
-                <CopyDownloadLink deliverableId={current.id} downloadToken={current.download_token} />
-              </div>
-
-              {/* Preview — native <video>/<img> requests can't carry the admin's Bearer token,
-                  so these use the session-independent download_token too, same as the copy link. */}
-              {current.mime_type.startsWith('video/') && (
-                <video controls className="w-full rounded-lg max-h-64 bg-black" src={fileHref(current.id, current.download_token)} poster={current.thumbnail_path ? fileHref(current.id, current.download_token, { thumbnail: true }) : undefined} />
-              )}
-              {current.mime_type.startsWith('audio/') && (
-                <audio controls className="w-full" src={fileHref(current.id, current.download_token)} />
-              )}
-              {current.mime_type.startsWith('image/') && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={fileHref(current.id, current.download_token)} alt="Aperçu" className="w-full rounded-lg max-h-64 object-contain bg-navy/5" />
-              )}
-              {!current.mime_type.startsWith('video/') && !current.mime_type.startsWith('audio/') && !current.mime_type.startsWith('image/') && (
-                <a href={fileHref(current.id, current.download_token)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-brand text-xs font-semibold hover:text-ocean">
-                  <Eye size={13} /> Ouvrir le fichier
-                </a>
-              )}
-
-              {error && <p className="text-red-500 text-xs font-medium">{error}</p>}
-
-              {current.status === 'submitted' && (
-                <>
-                  {rejecting ? (
-                    <div className="space-y-2 pt-1">
-                      <Select value={reason} onChange={setReason} className="text-xs">
-                        {REJECTION_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </Select>
-                      <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="resize-none text-xs" placeholder="Commentaire (optionnel)" />
-                      <div className="flex gap-2">
-                        <button onClick={() => setRejecting(false)} className="flex-1 py-1.5 rounded-xl border border-silver text-navy/50 hover:text-navy text-xs transition-colors">Annuler</button>
-                        <button onClick={() => handleDecision('reject')} disabled={busy} className="flex-1 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-colors disabled:opacity-50">
-                          Confirmer le rejet
-                        </button>
+            <div className="space-y-2">
+              {/* Pending batch — every file submitted together, reviewed as a group */}
+              {pendingBatch.map((d) => {
+                const Icon = fileIcon(d.mime_type)
+                return (
+                  <div key={d.id} className="glass-sm rounded-xl p-4 space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center text-brand shrink-0">
+                        <Icon size={18} />
                       </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-navy font-semibold text-sm">Version {d.version}</p>
+                        <p className="text-navy/45 text-xs mt-0.5">
+                          {formatBytes(d.size_bytes)} · {d.mime_type}
+                          {d.duration_seconds ? ` · ${Math.round(d.duration_seconds)}s` : ''} · {formatDate(d.submitted_at)}
+                        </p>
+                        {d.notes && <p className="text-navy/55 text-xs mt-1.5 italic">« {d.notes} »</p>}
+                      </div>
+                      {statusBadge(d.status)}
                     </div>
-                  ) : (
-                    <div className="flex gap-2 pt-1">
-                      <button onClick={() => setRejecting(true)} disabled={busy} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors disabled:opacity-50">
-                        <X size={13} /> Rejeter
-                      </button>
-                      <motion.button
-                        onClick={() => handleDecision('validate')} disabled={busy}
-                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand hover:bg-ocean text-white text-xs font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
-                      >
-                        <Check size={13} /> Valider
-                      </motion.button>
+                    <div className="flex items-center justify-end">
+                      <CopyDownloadLink deliverableId={d.id} downloadToken={d.download_token} />
                     </div>
-                  )}
-                </>
+                    {preview(d)}
+                    {error && rejectingId === d.id && <p className="text-red-500 text-xs font-medium">{error}</p>}
+                    {rejectingId === d.id ? (
+                      <div className="space-y-2 pt-1">
+                        <Select value={reason} onChange={setReason} className="text-xs">
+                          {REJECTION_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </Select>
+                        <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="resize-none text-xs" placeholder="Commentaire (optionnel)" />
+                        <div className="flex gap-2">
+                          <button onClick={() => setRejectingId(null)} className="flex-1 py-1.5 rounded-xl border border-silver text-navy/50 hover:text-navy text-xs transition-colors">Annuler</button>
+                          <button onClick={() => handleReject(d.id)} disabled={busy} className="flex-1 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition-colors disabled:opacity-50">
+                            Confirmer le rejet
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => setRejectingId(d.id)} disabled={busy} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-semibold transition-colors disabled:opacity-50">
+                          <X size={13} /> Rejeter
+                        </button>
+                        {pendingBatch.length === 1 && (
+                          <motion.button
+                            onClick={() => handleValidateOne(d.id)} disabled={busy}
+                            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-brand hover:bg-ocean text-white text-xs font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
+                          >
+                            <Check size={13} /> Valider
+                          </motion.button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {pendingBatch.length > 1 && (
+                <motion.button
+                  onClick={handleValidateAll} disabled={busy}
+                  whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-brand hover:bg-ocean text-white text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
+                >
+                  <CheckCheck size={15} /> Valider tout ({pendingBatch.length}) — passe à l’étape suivante
+                </motion.button>
               )}
 
-              {current.status === 'validated' && (
+              {/* Nothing pending — show the single latest item's outcome (validated/rejected) */}
+              {singleLatest && (
+                <div className="glass-sm rounded-xl p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center text-brand shrink-0">
+                      {(() => { const Icon = fileIcon(singleLatest.mime_type); return <Icon size={18} /> })()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-navy font-semibold text-sm">Version {singleLatest.version}</p>
+                      <p className="text-navy/45 text-xs mt-0.5">
+                        {formatBytes(singleLatest.size_bytes)} · {singleLatest.mime_type}
+                        {singleLatest.duration_seconds ? ` · ${Math.round(singleLatest.duration_seconds)}s` : ''} · {formatDate(singleLatest.submitted_at)}
+                      </p>
+                    </div>
+                    {statusBadge(singleLatest.status)}
+                  </div>
+                  <div className="flex items-center justify-end">
+                    <CopyDownloadLink deliverableId={singleLatest.id} downloadToken={singleLatest.download_token} />
+                  </div>
+                  {preview(singleLatest)}
+
+                  {singleLatest.status === 'validated' && (
+                    <div className="pt-1">
+                      {singleLatest.client_share_token && !shareUrl ? (
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 text-xs text-navy/50 truncate">Lien client actif{singleLatest.client_share_expires_at ? ` · expire ${formatDate(singleLatest.client_share_expires_at)}` : ''}</span>
+                          <button onClick={() => handleRevoke(singleLatest.id)} disabled={busy} className="flex items-center gap-1 text-[11px] text-red-500 hover:text-red-600 font-semibold disabled:opacity-50">
+                            <Ban size={11} /> Révoquer
+                          </button>
+                        </div>
+                      ) : shareUrl ? (
+                        <div className="flex items-center gap-2">
+                          <input readOnly value={shareUrl} className="text-xs flex-1" />
+                          <button onClick={() => copyToClipboard(shareUrl)} className="p-2 rounded-xl text-navy/40 hover:text-brand hover:bg-brand/10 transition-colors">
+                            <Copy size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => handleShare(singleLatest.id)} disabled={busy} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:text-ocean disabled:opacity-50">
+                          <Link2 size={13} /> Générer lien client
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {singleLatest.status === 'rejected' && (
+                    <div className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg p-2.5">
+                      <strong>{singleLatest.rejection_reason}</strong>{singleLatest.rejection_comment ? ` — ${singleLatest.rejection_comment}` : ''}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {canUploadHere && (
                 <div className="pt-1">
-                  {current.client_share_token && !shareUrl ? (
-                    <div className="flex items-center gap-2">
-                      <span className="flex-1 text-xs text-navy/50 truncate">Lien client actif{current.client_share_expires_at ? ` · expire ${formatDate(current.client_share_expires_at)}` : ''}</span>
-                      <button onClick={handleRevoke} disabled={busy} className="flex items-center gap-1 text-[11px] text-red-500 hover:text-red-600 font-semibold disabled:opacity-50">
-                        <Ban size={11} /> Révoquer
-                      </button>
-                    </div>
-                  ) : shareUrl ? (
-                    <div className="flex items-center gap-2">
-                      <input readOnly value={shareUrl} className="text-xs flex-1" />
-                      <button onClick={() => copyToClipboard(shareUrl)} className="p-2 rounded-xl text-navy/40 hover:text-brand hover:bg-brand/10 transition-colors">
-                        <Copy size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button onClick={handleShare} disabled={busy} className="flex items-center gap-1.5 text-xs font-semibold text-brand hover:text-ocean disabled:opacity-50">
-                      <Link2 size={13} /> Générer lien client
-                    </button>
-                  )}
+                  <AdminDeliverableUpload projectId={project.id} stage={activeStage} label="Ajouter une nouvelle version" />
                 </div>
               )}
-
-              {current.status === 'rejected' && (
-                <div className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg p-2.5">
-                  <strong>{current.rejection_reason}</strong>{current.rejection_comment ? ` — ${current.rejection_comment}` : ''}
-                </div>
-              )}
-
-              <div className="pt-1 border-t border-white/50">
-                <AdminDeliverableUpload projectId={project.id} stage={activeStage} label="Ajouter une nouvelle version" />
-              </div>
             </div>
           )}
 
@@ -351,7 +416,7 @@ export default function DeliverablePanel({ project }: { project: Project }) {
       {otherStages.length > 0 && (
         <div className="space-y-2">
           {otherStages.map((stage) => (
-            <PastStageBlock key={stage} projectId={project.id} stage={stage} deliverables={byStage(stage)} />
+            <PastStageBlock key={stage} projectId={project.id} stage={stage} deliverables={byStage(stage)} canUpload={canUploadHere} />
           ))}
         </div>
       )}

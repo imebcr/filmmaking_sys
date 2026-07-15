@@ -118,6 +118,7 @@ CREATE TABLE deliverables (
   client_share_expires_at TIMESTAMP WITH TIME ZONE,
   client_share_access_log JSONB NOT NULL DEFAULT '[]'::jsonb,
   download_token TEXT UNIQUE DEFAULT uuid_generate_v4()::text,
+  batch_id UUID DEFAULT uuid_generate_v4(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE (project_id, stage, version)

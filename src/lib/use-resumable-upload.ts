@@ -9,6 +9,7 @@ interface UploadParams {
   stage: string
   file: File
   notes: string
+  batchId?: string
 }
 
 interface UploadState {
@@ -20,6 +21,19 @@ interface UploadState {
 }
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>
+
+// crypto.randomUUID() requires a secure context (HTTPS/localhost) — this app runs over
+// plain HTTP, so it's unavailable. crypto.getRandomValues() has no such restriction.
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const bytes = crypto.getRandomValues(new Uint8Array(16))
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
 
 /**
  * Offset-based resumable upload against /api/member/deliverables/*.
@@ -34,7 +48,7 @@ type Fetcher = (input: string, init?: RequestInit) => Promise<Response>
 export function useResumableUpload(fetcher: Fetcher = fetch) {
   const [state, setState] = useState<UploadState>({ uploading: false, progress: 0, error: null, currentFileIndex: 0, totalFiles: 0 })
 
-  const upload = useCallback(async ({ projectId, stage, file, notes }: UploadParams): Promise<boolean> => {
+  const upload = useCallback(async ({ projectId, stage, file, notes, batchId }: UploadParams): Promise<boolean> => {
     setState((s) => ({ ...s, uploading: true, progress: 0, error: null }))
     try {
       const initRes = await fetcher('/api/member/deliverables/init', {
@@ -47,6 +61,7 @@ export function useResumableUpload(fetcher: Fetcher = fetch) {
           mime_type: file.type || 'application/octet-stream',
           size_bytes: file.size,
           notes,
+          batch_id: batchId ?? generateId(),
         }),
       })
       const initData = await initRes.json().catch(() => ({}))
@@ -102,12 +117,15 @@ export function useResumableUpload(fetcher: Fetcher = fetch) {
     }
   }, [fetcher])
 
-  // Uploads several files as a batch — one deliverable (its own version) per file, submitted together.
-  const uploadMultiple = useCallback(async ({ projectId, stage, files, notes }: Omit<UploadParams, 'file'> & { files: File[] }): Promise<boolean> => {
+  // Uploads several files as one batch — one deliverable (its own version) per file, but all
+  // sharing a batch_id so the admin reviews them together and the project only advances once
+  // every file in the batch has been decided on.
+  const uploadMultiple = useCallback(async ({ projectId, stage, files, notes }: Omit<UploadParams, 'file' | 'batchId'> & { files: File[] }): Promise<boolean> => {
+    const batchId = generateId()
     let allOk = true
     for (let i = 0; i < files.length; i++) {
       setState((s) => ({ ...s, currentFileIndex: i + 1, totalFiles: files.length }))
-      const ok = await upload({ projectId, stage, file: files[i], notes })
+      const ok = await upload({ projectId, stage, file: files[i], notes, batchId })
       if (!ok) allOk = false
     }
     setState((s) => ({ ...s, currentFileIndex: 0, totalFiles: 0 }))

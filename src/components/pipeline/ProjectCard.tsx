@@ -9,7 +9,7 @@ import type { Project, ProjectStage } from '@/lib/types'
 import { STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
 import { nextStageFor, prevStageFor } from '@/lib/stage-rules'
 import Badge from '@/components/ui/Badge'
-import { formatDZD, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 import { useApp } from '@/context/AppContext'
 
 interface Props {
@@ -50,6 +50,9 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
 
   const isActiveStage = DELIVERABLE_STAGES.includes(project.stage)
   const pendingDeliverable = (project.deliverables ?? []).some((d) => d.stage === project.stage && d.status === 'submitted')
+  const rejectedDeliverable = (project.deliverables ?? [])
+    .filter((d) => d.stage === project.stage && d.status === 'rejected')
+    .sort((a, b) => b.version - a.version)[0]
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -86,7 +89,11 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
         transition={{ type: 'spring' as const, stiffness: 500, damping: 28 }}
         onClick={(e) => { if (!confirming) { e.stopPropagation(); onClick() } }}
         className={`glass-sm rounded-2xl p-3.5 mb-2.5 select-none cursor-grab active:cursor-grabbing relative group ${
-          isActiveStage ? 'border-l-4 border-l-brand' : ''
+          pendingDeliverable
+            ? 'border-l-4 border-l-amber-400 bg-amber-50/40'
+            : rejectedDeliverable
+              ? 'border-l-4 border-l-red-400'
+              : isActiveStage ? 'border-l-4 border-l-brand' : ''
         }`}
       >
         {/* Confirm delete overlay */}
@@ -148,22 +155,27 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
           </div>
         </div>
 
-        {/* Badge */}
+        {/* Badge — pending review / rejected surface first, most important state first */}
         <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+          {pendingDeliverable && (
+            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 animate-pulse">
+              À valider
+            </span>
+          )}
+          {!pendingDeliverable && rejectedDeliverable && (
+            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-red-100 text-red-600 border border-red-300">
+              Rejeté · v{rejectedDeliverable.version}
+            </span>
+          )}
           <Badge projectType={project.project_type} small />
           {orderSiblings.length > 1 && (
             <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-navy/5 text-navy/50 border border-navy/10" title="Fait partie d'une commande à plusieurs vidéos">
               Vidéo {orderIndex + 1}/{orderSiblings.length}
             </span>
           )}
-          {isActiveStage && (
+          {isActiveStage && !pendingDeliverable && (
             <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-brand/10 text-brand border border-brand/25">
               En cours
-            </span>
-          )}
-          {pendingDeliverable && (
-            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 animate-pulse">
-              À valider
             </span>
           )}
           {project.stage === 'delivered' && (
@@ -215,17 +227,14 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
         )}
 
         {/* Bottom row */}
-        <div className="flex items-center justify-between mt-1 gap-2">
-          <span className="text-navy font-bold text-xs">
-            {formatDZD(project.deal_price || 0)}
-          </span>
-          {project.deadline && (
+        {project.deadline && (
+          <div className="flex items-center justify-end mt-1 gap-2">
             <div className="flex items-center gap-1 text-navy/45 text-[11px]">
               <Calendar size={10} />
               <span>{formatDate(project.deadline)}</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </motion.div>
     </div>
   )

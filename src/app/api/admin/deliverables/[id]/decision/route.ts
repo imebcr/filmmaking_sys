@@ -50,13 +50,30 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       .eq('id', id)
 
-    await supabase.from('projects').update({ stage: nextStage }).eq('id', project.id)
-
-    if (deliverable.submitted_by) {
-      await notifyDeliverableValidated(deliverable.submitted_by, project.client_name, isFinalStage, project.id)
+    // A batch (multiple files submitted together) only advances the project once every
+    // file in it has a decision — validating one file doesn't move things along if its
+    // siblings are still waiting on a decision.
+    let batchComplete = true
+    if (deliverable.batch_id) {
+      const { data: pendingSiblings } = await supabase
+        .from('deliverables')
+        .select('id')
+        .eq('batch_id', deliverable.batch_id)
+        .eq('project_id', project.id)
+        .eq('stage', deliverable.stage)
+        .eq('status', 'submitted')
+      batchComplete = (pendingSiblings?.length ?? 0) === 0
     }
 
-    return NextResponse.json({ ok: true, projectStage: nextStage, clientShareToken })
+    if (batchComplete) {
+      await supabase.from('projects').update({ stage: nextStage }).eq('id', project.id)
+    }
+
+    if (deliverable.submitted_by) {
+      await notifyDeliverableValidated(deliverable.submitted_by, project.client_name, isFinalStage && batchComplete, project.id)
+    }
+
+    return NextResponse.json({ ok: true, projectStage: batchComplete ? nextStage : project.stage, batchComplete, clientShareToken })
   }
 
   // reject

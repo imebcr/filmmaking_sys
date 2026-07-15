@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
@@ -10,7 +11,7 @@ import { Search } from 'lucide-react'
 import type { Project, ProjectStage } from '@/lib/types'
 import { STAGES } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
-import { resolveTargetStage, hasDeliverableForCurrentStage, stageRolesAlreadyAssigned, STAGE_ROLES } from '@/lib/stage-rules'
+import { resolveTargetStage, hasDeliverableForCurrentStage, stageRolesAlreadyAssigned, hasPendingDeliverable, STAGE_ROLES } from '@/lib/stage-rules'
 import KanbanColumn from './KanbanColumn'
 import ProjectCard from './ProjectCard'
 import AssignEditorModal from './AssignEditorModal'
@@ -22,8 +23,11 @@ import Select from '@/components/ui/Select'
 
 export default function KanbanBoard() {
   const { projects, projectTypes, updateProject } = useApp()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [activeProject, setActiveProject] = useState<Project | null>(null)
   const [detailProject, setDetailProject] = useState<Project | null>(null)
+  const [detailScrollToChat, setDetailScrollToChat] = useState(false)
   const [pendingProject, setPendingProject] = useState<Project | null>(null)
   const [showAssign, setShowAssign] = useState(false)
   const [stageAssignTarget, setStageAssignTarget] = useState<ProjectStage | null>(null)
@@ -36,6 +40,20 @@ export default function KanbanBoard() {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   )
+
+  // Notification-bell deep link: ?project=<id>&chat=1 opens that project's modal,
+  // scrolled to the discussion. Params are stripped once consumed so switching
+  // between projects inside the modal (or a later refresh) doesn't re-trigger it.
+  useEffect(() => {
+    const projectId = searchParams.get('project')
+    if (!projectId || projects.length === 0) return
+    const target = projects.find((p) => p.id === projectId)
+    if (target) {
+      setDetailProject(target)
+      setDetailScrollToChat(searchParams.get('chat') === '1')
+    }
+    router.replace('/pipeline')
+  }, [projects, searchParams, router])
 
   const handleDragStart = (event: DragStartEvent) => {
     const p = projects.find((p) => p.id === event.active.id)
@@ -84,7 +102,9 @@ export default function KanbanBoard() {
     return matchSearch && matchType
   })
 
-  const byStage = (stage: ProjectStage) => filtered.filter((p) => p.stage === stage)
+  const byStage = (stage: ProjectStage) => filtered
+    .filter((p) => p.stage === stage)
+    .sort((a, b) => Number(hasPendingDeliverable(b)) - Number(hasPendingDeliverable(a)))
 
   return (
     <>
@@ -120,7 +140,7 @@ export default function KanbanBoard() {
               key={stage}
               stage={stage}
               projects={byStage(stage)}
-              onCardClick={(p) => setDetailProject(p)}
+              onCardClick={(p) => { setDetailProject(p); setDetailScrollToChat(false) }}
               onAddProject={stage === 'incoming' ? () => setShowNew(true) : undefined}
               onRequestStageChange={requestStageChange}
             />
@@ -172,11 +192,13 @@ export default function KanbanBoard() {
       {detailProject && (
         <ProjectDetailModal
           project={projects.find((p) => p.id === detailProject.id) ?? detailProject}
-          onClose={() => setDetailProject(null)}
+          onClose={() => { setDetailProject(null); setDetailScrollToChat(false) }}
           onSwitchProject={(id) => {
             const target = projects.find((p) => p.id === id)
             if (target) setDetailProject(target)
+            setDetailScrollToChat(false)
           }}
+          scrollToChat={detailScrollToChat}
         />
       )}
 

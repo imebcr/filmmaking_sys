@@ -143,6 +143,7 @@ export interface Deliverable {
   client_share_expires_at: string | null
   client_share_access_log: Array<{ at: string; ip: string | null }>
   download_token: string | null
+  batch_id: string | null
   created_at: string
   updated_at: string
   // Joined

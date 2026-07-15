@@ -4,6 +4,7 @@ import { memberHasAccessToProject } from '@/lib/member-access'
 import { allowedMimeTypesForRoles, allAllowedMimeTypes, deliverableDir, ensureDir, MAX_UPLOAD_BYTES } from '@/lib/deliverable-storage'
 import { resolveUploaderIdentity } from '@/lib/upload-identity'
 import path from 'path'
+import { randomUUID } from 'crypto'
 
 /**
  * Starts a resumable upload: creates the Deliverable row (status=uploading)
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
   const mimeType = body?.mime_type as string | undefined
   const sizeBytes = Number(body?.size_bytes)
   const notes = typeof body?.notes === 'string' ? body.notes : ''
+  const batchId = typeof body?.batch_id === 'string' && body.batch_id ? body.batch_id : randomUUID()
 
   if (!projectId || !stage || !filename || !mimeType || !Number.isFinite(sizeBytes)) {
     return NextResponse.json({ error: 'Requête invalide.' }, { status: 400 })
@@ -74,6 +76,7 @@ export async function POST(request: Request) {
       mime_type: mimeType,
       status: 'uploading',
       notes,
+      batch_id: batchId,
     })
     .select()
     .single()

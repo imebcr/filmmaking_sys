@@ -49,6 +49,14 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
 
   useEffect(() => { load() }, [id])
 
+  // Notification-bell links to a specific project's chat via #chat — content loads
+  // client-side, so the browser's native hash-scroll (which fires before that) misses it.
+  useEffect(() => {
+    if (!loading && project && window.location.hash === '#chat') {
+      document.getElementById('chat')?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [loading, project])
+
   const handleStart = async () => {
     await fetch(`/api/member/projects/${id}/start`, { method: 'POST' })
     load()
@@ -65,7 +73,7 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
 
   const rejectedHistory = project.myDeliverables.filter((d) => d.status === 'rejected')
   const currentStageDeliverable = project.myDeliverables.find((d) => d.stage === project.stage)
-  const canUpload = !currentStageDeliverable || currentStageDeliverable.status === 'rejected'
+  const canUpload = DELIVERABLE_STAGES.includes(project.stage) && (!currentStageDeliverable || currentStageDeliverable.status === 'rejected')
 
   return (
     <div className="min-h-screen">
@@ -145,7 +153,8 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
           </section>
         )}
 
-        {/* Upload zone */}
+        {/* Upload zone — no longer available once the project is Delivered */}
+        {DELIVERABLE_STAGES.includes(project.stage) && (
         <section>
           <h2 className="text-navy font-semibold mb-3 flex items-center gap-2"><Upload size={15} /> Livrer un ou plusieurs fichiers</h2>
           {!canUpload ? (
@@ -155,11 +164,18 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
           ) : (
             <div className="glass-sm rounded-2xl p-4 space-y-3">
               <input
+                id="member-file-input"
                 type="file"
                 multiple
+                hidden
                 onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-                className="text-xs"
               />
+              <label
+                htmlFor="member-file-input"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-silver text-navy/60 hover:text-navy hover:bg-white/50 text-xs font-semibold cursor-pointer transition-colors"
+              >
+                <Upload size={13} /> Choisir des fichiers
+              </label>
               {files.length > 0 && (
                 <div className="space-y-1">
                   {files.map((f, i) => (
@@ -195,6 +211,7 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
             </div>
           )}
         </section>
+        )}
 
         {/* Rejection history */}
         {rejectedHistory.length > 0 && (

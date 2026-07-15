@@ -165,6 +165,12 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- ─── deliverables — group files submitted together as one batch ────
+-- When a member submits several files at once, they must be reviewed together —
+-- the project only advances once every file in that batch has a decision made on it.
+ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS batch_id UUID;
+UPDATE deliverables SET batch_id = id WHERE batch_id IS NULL;
+
 -- ─── notifications — read tracking for the notification bell ───────
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;
 

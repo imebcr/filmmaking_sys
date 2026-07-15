@@ -3,7 +3,7 @@ require('./env').loadEnv()
 const http = require('http')
 const crypto = require('crypto')
 const { WebSocketServer } = require('ws')
-const { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectName, getTelegramTargets, supabase } = require('./auth')
+const { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectInfo, getTelegramTargets, supabase } = require('./auth')
 const { parseMentions } = require('./mentions')
 const { sendTelegramMessage } = require('./telegram')
 const store = require('./store')
@@ -64,14 +64,15 @@ async function notifyMentions(message) {
   const mentionedIds = message.mentions.filter((id) => id !== message.senderId)
   if (mentionedIds.length === 0) return
 
-  const [targets, projectName] = await Promise.all([
+  const [targets, projectInfo] = await Promise.all([
     getTelegramTargets(mentionedIds),
-    getProjectName(message.projectId),
+    getProjectInfo(message.projectId),
   ])
   if (targets.length === 0) return
 
   const snippet = message.body.length > 200 ? `${message.body.slice(0, 200)}…` : message.body
-  const text = `💬 <b>${message.senderName}</b> vous a mentionné dans <b>${projectName}</b> :\n${snippet}`
+  const stagePart = projectInfo.stageLabel ? ` (étape : <b>${projectInfo.stageLabel}</b>)` : ''
+  const text = `💬 <b>${message.senderName}</b> vous a mentionné dans <b>${projectInfo.name}</b>${stagePart} :\n${snippet}`
   await Promise.all(targets.map((t) => sendTelegramMessage(t.chatId, text)))
 }
 

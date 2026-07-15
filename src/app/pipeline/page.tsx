@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import AppLayout from '@/components/layout/AppLayout'
 import KanbanBoard from '@/components/pipeline/KanbanBoard'
 import { useApp } from '@/context/AppContext'
@@ -24,7 +25,9 @@ export default function PipelinePage() {
         {loading ? (
           <div className="flex items-center justify-center py-24 text-navy/35 text-sm">Loading…</div>
         ) : (
-          <KanbanBoard />
+          <Suspense fallback={null}>
+            <KanbanBoard />
+          </Suspense>
         )}
       </div>
     </AppLayout>
