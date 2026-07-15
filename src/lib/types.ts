@@ -171,6 +171,7 @@ export interface Notification {
   payload: Record<string, unknown>
   sent_at: string
   delivery_status: NotificationDeliveryStatus
+  read_at: string | null
   created_at: string
 }
 

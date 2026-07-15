@@ -148,6 +148,7 @@ CREATE TABLE notifications (
   sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   delivery_status TEXT NOT NULL DEFAULT 'queued'
     CHECK (delivery_status IN ('queued', 'sent', 'delivered', 'failed')),
+  read_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

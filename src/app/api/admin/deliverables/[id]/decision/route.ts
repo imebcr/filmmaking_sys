@@ -53,7 +53,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await supabase.from('projects').update({ stage: nextStage }).eq('id', project.id)
 
     if (deliverable.submitted_by) {
-      await notifyDeliverableValidated(deliverable.submitted_by, project.client_name, isFinalStage)
+      await notifyDeliverableValidated(deliverable.submitted_by, project.client_name, isFinalStage, project.id)
     }
 
     return NextResponse.json({ ok: true, projectStage: nextStage, clientShareToken })
@@ -81,7 +81,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq('id', project.id)
 
   if (deliverable.submitted_by) {
-    await notifyDeliverableRejected(deliverable.submitted_by, project.client_name, rejectionReason, rejectionComment)
+    await notifyDeliverableRejected(deliverable.submitted_by, project.client_name, rejectionReason, rejectionComment, project.id)
   }
 
   return NextResponse.json({ ok: true, projectStage: previousStage })

@@ -2,8 +2,8 @@
 
 import { useEffect, useState, use as usePromise } from 'react'
 import { motion } from 'framer-motion'
-import { Calendar, PlayCircle, Upload, AlertCircle, CheckCircle2, Download } from 'lucide-react'
-import type { Deliverable, ProjectStage } from '@/lib/types'
+import { Calendar, PlayCircle, Upload, AlertCircle, CheckCircle2, Download, Phone, Mail, Building2, Paperclip } from 'lucide-react'
+import type { Deliverable, ProjectStage, ProjectFile } from '@/lib/types'
 import { STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 import { useResumableUpload } from '@/lib/use-resumable-upload'
@@ -12,6 +12,9 @@ import ProjectChatPanel from '@/components/project/ProjectChatPanel'
 interface MemberProjectDetail {
   id: string
   client_name: string
+  client_phone: string
+  client_email: string
+  client_company: string
   description: string
   stage_requirements: Record<string, string>
   stage: ProjectStage
@@ -22,6 +25,7 @@ interface MemberProjectDetail {
   myDeliverables: Deliverable[]
   allDeliverables: Deliverable[]
   participants: { id: string; name: string }[]
+  project_files: ProjectFile[]
 }
 
 export default function MemberProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -97,13 +101,49 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
             </div>
           )}
 
-          {project.stage_requirements?.[project.stage] && (
+          {(project.client_phone || project.client_email || project.client_company) && (
             <div>
-              <p className="text-navy/50 text-xs font-medium mb-1">Attentes pour cette étape</p>
-              <p className="text-navy/75 text-sm">{project.stage_requirements[project.stage]}</p>
+              <p className="text-navy/50 text-xs font-medium mb-1.5">Client</p>
+              <div className="flex flex-wrap gap-3 text-navy/75 text-xs">
+                {project.client_phone && <span className="flex items-center gap-1"><Phone size={11} /> {project.client_phone}</span>}
+                {project.client_email && <span className="flex items-center gap-1"><Mail size={11} /> {project.client_email}</span>}
+                {project.client_company && <span className="flex items-center gap-1"><Building2 size={11} /> {project.client_company}</span>}
+              </div>
+            </div>
+          )}
+
+          {DELIVERABLE_STAGES.some((s) => project.stage_requirements?.[s]) && (
+            <div>
+              <p className="text-navy/50 text-xs font-medium mb-1.5">Attentes par étape</p>
+              <div className="space-y-1.5">
+                {DELIVERABLE_STAGES.filter((s) => project.stage_requirements?.[s]).map((s) => (
+                  <div key={s} className="text-sm">
+                    <span className={`text-xs font-semibold ${s === project.stage ? 'text-brand' : 'text-navy/45'}`}>{STAGE_LABELS[s]}</span>
+                    <p className="text-navy/75">{project.stage_requirements[s]}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
+
+        {project.project_files.length > 0 && (
+          <section>
+            <h2 className="text-navy font-semibold mb-3 flex items-center gap-2"><Paperclip size={15} /> Fichiers du projet</h2>
+            <div className="space-y-1.5">
+              {project.project_files.map((f) => (
+                <a
+                  key={f.id}
+                  href={`/api/project-files/${f.id}`}
+                  className="flex items-center gap-2 glass-sm rounded-xl px-3 py-2 text-xs hover:bg-white/50 transition-colors"
+                >
+                  <span className="flex-1 min-w-0 truncate text-navy/70">{f.file_name}</span>
+                  <Download size={13} className="text-navy/40 shrink-0" />
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Upload zone */}
         <section>

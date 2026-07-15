@@ -27,6 +27,11 @@ db.exec(`
     project_id TEXT PRIMARY KEY,
     delivered_since TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS mention_reads (
+    editor_id TEXT PRIMARY KEY,
+    last_read_at TEXT NOT NULL
+  );
 `)
 
 function insertMessage(msg) {
@@ -76,4 +81,31 @@ function purgeExpiredSessions() {
   return expired.map((r) => r.project_id)
 }
 
-module.exports = { insertMessage, getHistory, markDeliveredIfNew, clearDeliveredMark, getTrackedProjectIds, purgeExpiredSessions }
+// Recent messages mentioning this editor, across all projects — for the notification bell.
+function getMentions(editorId, limit = 30) {
+  const rows = db.prepare(
+    "SELECT * FROM messages WHERE mentions LIKE ? ORDER BY created_at DESC LIMIT ?",
+  ).all(`%"${editorId}"%`, limit)
+  const lastRead = db.prepare('SELECT last_read_at FROM mention_reads WHERE editor_id = ?').get(editorId)
+  const lastReadAt = lastRead?.last_read_at ?? '1970-01-01T00:00:00.000Z'
+
+  return rows
+    .map((row) => ({
+      id: row.id,
+      projectId: row.project_id,
+      senderName: row.sender_name,
+      body: row.body,
+      mentions: JSON.parse(row.mentions),
+      createdAt: row.created_at,
+    }))
+    .filter((m) => m.mentions.includes(editorId))
+    .map((m) => ({ ...m, read: m.createdAt <= lastReadAt }))
+}
+
+function markMentionsRead(editorId) {
+  db.prepare(
+    'INSERT INTO mention_reads (editor_id, last_read_at) VALUES (?, ?) ON CONFLICT(editor_id) DO UPDATE SET last_read_at = excluded.last_read_at',
+  ).run(editorId, new Date().toISOString())
+}
+
+module.exports = { insertMessage, getHistory, markDeliveredIfNew, clearDeliveredMark, getTrackedProjectIds, purgeExpiredSessions, getMentions, markMentionsRead }

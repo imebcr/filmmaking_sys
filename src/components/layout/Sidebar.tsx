@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAdminIdentity } from '@/lib/use-admin-identity'
 import LogoutConfirmModal from '@/components/ui/LogoutConfirmModal'
+import NotificationBell from '@/components/ui/NotificationBell'
 
 const links = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -37,7 +38,7 @@ export default function Sidebar() {
     <aside className="hidden lg:flex flex-col w-56 min-h-screen glass-sidebar fixed left-0 top-0 bottom-0 z-30">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/40">
-        <div className="flex items-center h-9">
+        <div className="flex items-center justify-between h-9">
           <Image
             src="/logo.png"
             alt="Zidny"
@@ -47,6 +48,7 @@ export default function Sidebar() {
             style={{ height: 'auto' }}
             priority
           />
+          <NotificationBell />
         </div>
       </div>
 

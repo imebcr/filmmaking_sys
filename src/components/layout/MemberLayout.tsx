@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useSession, signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import LogoutConfirmModal from '@/components/ui/LogoutConfirmModal'
+import NotificationBell from '@/components/ui/NotificationBell'
 
 const links = [
   { href: '/me', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -51,8 +52,9 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
 
       <aside className="hidden lg:flex flex-col w-56 min-h-screen glass-sidebar fixed left-0 top-0 bottom-0 z-30">
         <div className="px-5 py-5 border-b border-white/40">
-          <div className="flex items-center h-9">
+          <div className="flex items-center justify-between h-9">
             <Image src="/logo.png" alt="Zidny" width={96} height={36} className="object-contain object-left" style={{ height: 'auto' }} priority />
+            <NotificationBell isMemberPortal />
           </div>
         </div>
         <nav className="flex-1 py-4 px-3 space-y-1">

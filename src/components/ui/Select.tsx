@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, Children, isValidElement } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, Children, isValidElement } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 
 interface Props {
@@ -20,17 +21,42 @@ interface OptionEntry {
 
 // Drop-in replacement for a native <select> — same children API (<option> elements) — but
 // fully custom-styled, since the native dropdown popup can't be restyled with CSS at all.
+// The options list renders through a portal into document.body, positioned by the trigger's
+// screen coordinates — otherwise it gets silently clipped by any scrollable ancestor
+// (e.g. the modal body's overflow-y-auto), which is a plain CSS limitation, not a React one.
 export default function Select({ value, onChange, children, className = '', style, disabled }: Props) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  const updatePosition = () => {
+    const r = triggerRef.current?.getBoundingClientRect()
+    if (r) setRect({ top: r.bottom + 4, left: r.left, width: r.width })
+  }
+
+  useLayoutEffect(() => {
+    if (open) updatePosition()
+  }, [open])
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+        && popoverRef.current && !popoverRef.current.contains(e.target as Node)
+      ) setOpen(false)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+    const handleReposition = () => updatePosition()
+    document.addEventListener('mousedown', handleClick)
+    window.addEventListener('scroll', handleReposition, true)
+    window.addEventListener('resize', handleReposition)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('scroll', handleReposition, true)
+      window.removeEventListener('resize', handleReposition)
+    }
+  }, [open])
 
   const options: OptionEntry[] = []
   Children.forEach(children, (child) => {
@@ -42,8 +68,9 @@ export default function Select({ value, onChange, children, className = '', styl
   const selected = options.find((o) => o.value === value)
 
   return (
-    <div ref={ref} className={`relative ${className}`} style={style}>
+    <div className={`relative ${className}`} style={style}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
@@ -63,10 +90,15 @@ export default function Select({ value, onChange, children, className = '', styl
         <span className="truncate">{selected?.label ?? ''}</span>
         <ChevronDown size={14} className={`shrink-0 ml-2 text-navy/40 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
+      {open && rect && typeof document !== 'undefined' && createPortal(
         <div
-          className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-white/65"
-          style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(10,96,173,0.15)' }}
+          ref={popoverRef}
+          className="fixed z-[9999] max-h-60 overflow-y-auto rounded-xl border border-white/65"
+          style={{
+            top: rect.top, left: rect.left, width: rect.width,
+            background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+            boxShadow: '0 8px 32px rgba(10,96,173,0.15)',
+          }}
         >
           {options.map((o, i) => (
             <button
@@ -81,7 +113,8 @@ export default function Select({ value, onChange, children, className = '', styl
               {o.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

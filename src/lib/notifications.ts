@@ -109,32 +109,32 @@ export async function notifyInvitationSent(memberId: string, email: string, toke
   })
 }
 
-export async function notifyProjectAssigned(memberId: string, projectName: string, projectType: string, deadline: string | null) {
+export async function notifyProjectAssigned(memberId: string, projectName: string, projectType: string, deadline: string | null, projectId?: string) {
   await notify({
     recipientId: memberId,
     eventType: 'project_assigned',
-    payload: { projectName, projectType, deadline },
+    payload: { projectName, projectType, deadline, projectId },
     sendEmail: (m) => sendProjectAssignedEmail(m.email!, m.full_name, projectName, projectType, deadline),
     telegramText: (m) => `📋 Nouveau projet assigné : <b>${projectName}</b> (${projectType})${deadline ? `\nÉchéance : ${deadline}` : ''}\nBonjour ${m.full_name}`,
   })
 }
 
-export async function notifyDeadline24h(memberId: string, projectName: string) {
+export async function notifyDeadline24h(memberId: string, projectName: string, projectId?: string) {
   await notify({
     recipientId: memberId,
     eventType: 'deadline_24h',
-    payload: { projectName },
+    payload: { projectName, projectId },
     forced: true,
     sendEmail: (m) => sendDeadlineReminderEmail(m.email!, m.full_name, projectName),
     telegramText: () => `⏰ Rappel : le projet <b>${projectName}</b> arrive à échéance dans moins de 24h.`,
   })
 }
 
-export async function notifyDeliverableSubmitted(memberName: string, projectName: string, version: number, commercialId?: string | null) {
+export async function notifyDeliverableSubmitted(memberName: string, projectName: string, version: number, commercialId?: string | null, projectId?: string) {
   if (ADMIN_EMAIL) {
     await notifyAdmin(
       'deliverable_submitted',
-      { memberName, projectName, version },
+      { memberName, projectName, version, projectId },
       () => sendDeliverableSubmittedEmail(ADMIN_EMAIL, memberName, projectName, version),
       `📥 ${memberName} a soumis la v${version} pour <b>${projectName}</b>.`,
     )
@@ -143,28 +143,28 @@ export async function notifyDeliverableSubmitted(memberName: string, projectName
     await notify({
       recipientId: commercialId,
       eventType: 'deliverable_submitted',
-      payload: { memberName, projectName, version },
+      payload: { memberName, projectName, version, projectId },
       sendEmail: (m) => sendDeliverableSubmittedEmail(m.email!, memberName, projectName, version),
       telegramText: () => `📥 ${memberName} a soumis la v${version} pour <b>${projectName}</b>.`,
     })
   }
 }
 
-export async function notifyDeliverableValidated(memberId: string, projectName: string, isFinalStage: boolean) {
+export async function notifyDeliverableValidated(memberId: string, projectName: string, isFinalStage: boolean, projectId?: string) {
   await notify({
     recipientId: memberId,
     eventType: 'deliverable_validated',
-    payload: { projectName, isFinalStage },
+    payload: { projectName, isFinalStage, projectId },
     sendEmail: (m) => sendDeliverableValidatedEmail(m.email!, m.full_name, projectName, isFinalStage),
     telegramText: () => `✅ Livraison validée pour <b>${projectName}</b>.${isFinalStage ? ' Projet clôturé.' : ''}`,
   })
 }
 
-export async function notifyDeliverableRejected(memberId: string, projectName: string, reason: string, comment: string) {
+export async function notifyDeliverableRejected(memberId: string, projectName: string, reason: string, comment: string, projectId?: string) {
   await notify({
     recipientId: memberId,
     eventType: 'deliverable_rejected',
-    payload: { projectName, reason, comment },
+    payload: { projectName, reason, comment, projectId },
     forced: true,
     sendEmail: (m) => sendDeliverableRejectedEmail(m.email!, m.full_name, projectName, reason, comment),
     telegramText: () => `❌ Livraison rejetée pour <b>${projectName}</b>.\nMotif : ${reason}${comment ? `\n${comment}` : ''}`,
@@ -181,11 +181,11 @@ export async function notifyDailyRiskSummary(projects: Array<{ name: string; day
   )
 }
 
-export async function notifyProjectReassigned(memberId: string, projectName: string, isNewAssignee: boolean) {
+export async function notifyProjectReassigned(memberId: string, projectName: string, isNewAssignee: boolean, projectId?: string) {
   await notify({
     recipientId: memberId,
     eventType: 'project_reassigned',
-    payload: { projectName, isNewAssignee },
+    payload: { projectName, isNewAssignee, projectId },
     sendEmail: (m) => sendProjectReassignedEmail(m.email!, m.full_name, projectName, isNewAssignee),
     telegramText: () => isNewAssignee ? `📋 Projet assigné : <b>${projectName}</b>.` : `↩️ Projet retiré : <b>${projectName}</b>.`,
   })

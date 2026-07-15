@@ -15,7 +15,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const supabase = createServerSupabaseClient()
   const { data: project, error } = await supabase
     .from('projects')
-    .select('id, client_name, description, stage_requirements, stage, deadline, revision_count, revisions_allowed, started_at, created_at, commercial_id, project_type:project_types(name, color, stages), deliverables(*), stakeholders:project_stakeholders(editor_id, name), editor_assignments(editor_id, editor_name)')
+    .select('id, client_name, client_phone, client_email, client_company, description, stage_requirements, stage, deadline, revision_count, revisions_allowed, started_at, created_at, commercial_id, project_type:project_types(name, color, stages), deliverables(*), project_files(*), stakeholders:project_stakeholders(editor_id, name), editor_assignments(editor_id, editor_name)')
     .eq('id', id)
     .single()
 

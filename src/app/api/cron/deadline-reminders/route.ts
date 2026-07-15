@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   for (const project of projects ?? []) {
     const memberIds = await getProjectAssigneeIds(project.id)
     for (const memberId of memberIds) {
-      await notifyDeadline24h(memberId, project.client_name)
+      await notifyDeadline24h(memberId, project.client_name, project.id)
       sent++
     }
   }

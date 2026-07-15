@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   format, parseISO, isValid, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -18,33 +19,57 @@ interface Props {
 const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 
 // Drop-in replacement for a native <input type="date"> — the native calendar popup is
-// rendered by the OS/browser shadow DOM and can't be restyled with CSS at all.
+// rendered by the OS/browser shadow DOM and can't be restyled with CSS at all. Renders
+// through a portal into document.body (see Select.tsx for why — same clipping issue).
 export default function DatePicker({ value, onChange, className = '', disabled }: Props) {
   const [open, setOpen] = useState(false)
+  const [rect, setRect] = useState<{ top: number; left: number } | null>(null)
   const selected = value && isValid(parseISO(value)) ? parseISO(value) : null
   const [viewMonth, setViewMonth] = useState(selected ?? new Date())
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (selected) setViewMonth(selected)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
+  const updatePosition = () => {
+    const r = triggerRef.current?.getBoundingClientRect()
+    if (r) setRect({ top: r.bottom + 4, left: r.left })
+  }
+
+  useLayoutEffect(() => {
+    if (open) updatePosition()
+  }, [open])
+
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    if (!open) return
+    const handleClick = (e: MouseEvent) => {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+        && popoverRef.current && !popoverRef.current.contains(e.target as Node)
+      ) setOpen(false)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+    const handleReposition = () => updatePosition()
+    document.addEventListener('mousedown', handleClick)
+    window.addEventListener('scroll', handleReposition, true)
+    window.addEventListener('resize', handleReposition)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('scroll', handleReposition, true)
+      window.removeEventListener('resize', handleReposition)
+    }
+  }, [open])
 
   const gridStart = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 1 })
   const gridEnd = endOfWeek(endOfMonth(viewMonth), { weekStartsOn: 1 })
   const days = eachDayOfInterval({ start: gridStart, end: gridEnd })
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div className={`relative ${className}`}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
@@ -64,10 +89,11 @@ export default function DatePicker({ value, onChange, className = '', disabled }
         <span className={selected ? '' : 'text-navy/40'}>{selected ? format(selected, 'dd MMM yyyy', { locale: fr }) : 'jj/mm/aaaa'}</span>
         <CalendarIcon size={13} className="shrink-0 ml-2 text-navy/40" />
       </button>
-      {open && (
+      {open && rect && typeof document !== 'undefined' && createPortal(
         <div
-          className="absolute z-50 mt-1 rounded-2xl border border-white/65 p-3"
-          style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(10,96,173,0.15)', width: 260 }}
+          ref={popoverRef}
+          className="fixed z-[9999] rounded-2xl border border-white/65 p-3"
+          style={{ top: rect.top, left: rect.left, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(10,96,173,0.15)', width: 260 }}
         >
           <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={() => setViewMonth((m) => subMonths(m, 1))} className="p-1 rounded-lg hover:bg-brand/10 text-navy/50 hover:text-navy transition-colors">
@@ -111,7 +137,8 @@ export default function DatePicker({ value, onChange, className = '', disabled }
               Effacer
             </button>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

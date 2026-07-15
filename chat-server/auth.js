@@ -40,8 +40,12 @@ async function resolveIdentity(request) {
   if (supabaseToken) {
     try {
       const { data, error } = await supabase.auth.getUser(supabaseToken)
-      if (!error && data?.user) {
-        return { editorId: null, name: 'Admin', privileged: true }
+      if (!error && data?.user?.email) {
+        // The admin gets an editors row auto-provisioned on login (see
+        // /api/admin/ensure-commercial-identity) — reuse its id here too, so mentions
+        // and notifications work for admin the same way they do for anyone else.
+        const { data: editor } = await supabase.from('editors').select('id, full_name').eq('email', data.user.email).maybeSingle()
+        return { editorId: editor?.id ?? null, name: editor?.full_name ?? 'Admin', privileged: true }
       }
     } catch (err) {
       console.warn('[chat-server] failed to validate Supabase token:', err.message)
@@ -83,4 +87,21 @@ async function getProjectParticipants(projectId) {
   return Array.from(participants.entries()).map(([id, name]) => ({ id, name }))
 }
 
-module.exports = { resolveIdentity, memberHasProjectAccess, getProjectParticipants, supabase }
+async function getProjectName(projectId) {
+  const { data } = await supabase.from('projects').select('client_name').eq('id', projectId).single()
+  return data?.client_name ?? 'un projet'
+}
+
+// Telegram chat id + preference for each mentioned editor, so the server can notify them.
+async function getTelegramTargets(editorIds) {
+  if (editorIds.length === 0) return []
+  const { data } = await supabase
+    .from('editors')
+    .select('id, telegram_chat_id, notification_preferences')
+    .in('id', editorIds)
+  return (data ?? [])
+    .filter((e) => e.telegram_chat_id && e.notification_preferences?.telegram !== false)
+    .map((e) => ({ id: e.id, chatId: e.telegram_chat_id }))
+}
+
+module.exports = { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectName, getTelegramTargets, supabase }

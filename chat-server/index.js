@@ -3,13 +3,35 @@ require('./env').loadEnv()
 const http = require('http')
 const crypto = require('crypto')
 const { WebSocketServer } = require('ws')
-const { resolveIdentity, memberHasProjectAccess, getProjectParticipants, supabase } = require('./auth')
+const { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectName, getTelegramTargets, supabase } = require('./auth')
 const { parseMentions } = require('./mentions')
+const { sendTelegramMessage } = require('./telegram')
 const store = require('./store')
 
 const PORT = process.env.CHAT_SERVER_PORT || 4001
 
-const server = http.createServer((req, res) => {
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+  res.end(JSON.stringify(body))
+}
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://localhost')
+
+  // Mentions HTTP API reuses the same /ws/chat nginx prefix — no extra VPS config needed.
+  if (url.pathname === '/ws/chat/mentions' && req.method === 'GET') {
+    const identity = await resolveIdentity(req)
+    if (!identity?.editorId) return sendJson(res, 401, { error: 'Non authentifié.' })
+    return sendJson(res, 200, { mentions: store.getMentions(identity.editorId) })
+  }
+
+  if (url.pathname === '/ws/chat/mentions/read' && req.method === 'POST') {
+    const identity = await resolveIdentity(req)
+    if (!identity?.editorId) return sendJson(res, 401, { error: 'Non authentifié.' })
+    store.markMentionsRead(identity.editorId)
+    return sendJson(res, 200, { ok: true })
+  }
+
   res.writeHead(200, { 'Content-Type': 'text/plain' })
   res.end('chat-server ok')
 })
@@ -36,6 +58,21 @@ function broadcast(projectId, payload) {
   for (const client of clients) {
     if (client.readyState === client.OPEN) client.send(json)
   }
+}
+
+async function notifyMentions(message) {
+  const mentionedIds = message.mentions.filter((id) => id !== message.senderId)
+  if (mentionedIds.length === 0) return
+
+  const [targets, projectName] = await Promise.all([
+    getTelegramTargets(mentionedIds),
+    getProjectName(message.projectId),
+  ])
+  if (targets.length === 0) return
+
+  const snippet = message.body.length > 200 ? `${message.body.slice(0, 200)}…` : message.body
+  const text = `💬 <b>${message.senderName}</b> vous a mentionné dans <b>${projectName}</b> :\n${snippet}`
+  await Promise.all(targets.map((t) => sendTelegramMessage(t.chatId, text)))
 }
 
 server.on('upgrade', async (request, socket, head) => {
@@ -106,6 +143,7 @@ wss.on('connection', (ws) => {
       }
       store.insertMessage(message)
       broadcast(projectId, { type: 'message', message })
+      notifyMentions(message).catch((err) => console.error('[chat-server] mention notification failed:', err.message))
       return
     }
   })

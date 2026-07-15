@@ -165,6 +165,9 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- ─── notifications — read tracking for the notification bell ───────
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP WITH TIME ZONE;
+
 -- ─── editor_assignments — survive a hard-deleted editor ─────
 -- "Delete" on a team member is now a real DELETE FROM editors (not a soft flag), so any
 -- assignment they had must keep a name snapshot instead of relying on the FK join, and the

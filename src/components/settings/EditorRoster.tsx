@@ -27,6 +27,8 @@ const defaultForm: EditorFormState = {
   level: '', email: '', phone: '', default_rate: '0', notes: '',
 }
 
+const LEVEL_OPTIONS = ['Junior', 'Confirmé', 'Senior', 'Expert']
+
 const STATUS_LABELS: Record<TeamMemberAccountStatus, string> = {
   pending: 'Non invité', invited: 'Invité (en attente)', active: 'Actif', suspended: 'Suspendu',
 }
@@ -51,12 +53,18 @@ function EditorForm({ initial, onSave, onCancel }: {
   const [error, setError] = useState<string | null>(null)
   const set = <K extends keyof EditorFormState>(key: K, value: EditorFormState[K]) => setForm((f) => ({ ...f, [key]: value }))
 
+  const isEditor = form.roles.includes('editeur')
+
   const toggleRole = (role: TeamMemberRole) => {
     set('roles', form.roles.includes(role) ? form.roles.filter((r) => r !== role) : [...form.roles, role])
   }
 
+  const isValid = form.full_name.trim() !== ''
+    && form.email.trim() !== ''
+    && form.phone.trim() !== ''
+
   const handleSave = async () => {
-    if (!form.full_name.trim()) return
+    if (!isValid) return
     setSaving(true)
     setError(null)
     const err = await onSave(form)
@@ -78,28 +86,33 @@ function EditorForm({ initial, onSave, onCancel }: {
           <input type="text" value={form.full_name} onChange={(e) => set('full_name', e.target.value)} placeholder="Nom du membre" />
         </div>
         <div>
-          <Label>Type de contrat</Label>
+          <Label>Type de contrat *</Label>
           <Select value={form.contract_type} onChange={(v) => set('contract_type', v as ContractType)}>
             <option value="freelance">Freelance</option>
             <option value="staff">Staff</option>
           </Select>
         </div>
+        {isEditor && (
+          <div>
+            <Label>Spécialité (montage) *</Label>
+            <Select value={form.specialty} onChange={(v) => set('specialty', v as EditorSpecialty)}>
+              {Object.entries(SPECIALTY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </Select>
+          </div>
+        )}
         <div>
-          <Label>Spécialité (montage)</Label>
-          <Select value={form.specialty} onChange={(v) => set('specialty', v as EditorSpecialty)}>
-            {Object.entries(SPECIALTY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          <Label>Niveau</Label>
+          <Select value={form.level} onChange={(v) => set('level', v)}>
+            <option value="">Sélectionner…</option>
+            {LEVEL_OPTIONS.map((l) => <option key={l} value={l}>{l}</option>)}
           </Select>
         </div>
         <div>
-          <Label>Niveau</Label>
-          <input type="text" value={form.level} onChange={(e) => set('level', e.target.value)} placeholder="Junior, Senior…" />
-        </div>
-        <div>
-          <Label>E-mail</Label>
+          <Label>E-mail *</Label>
           <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="membre@exemple.com" />
         </div>
         <div>
-          <Label>Téléphone</Label>
+          <Label>Téléphone *</Label>
           <input type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+213…" />
         </div>
         <div>
@@ -147,7 +160,7 @@ function EditorForm({ initial, onSave, onCancel }: {
         </button>
         <motion.button
           onClick={handleSave}
-          disabled={!form.full_name.trim() || saving}
+          disabled={!isValid || saving}
           whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand hover:bg-ocean text-white text-xs font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
         >

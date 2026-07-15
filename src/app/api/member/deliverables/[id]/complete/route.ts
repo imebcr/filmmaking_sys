@@ -57,7 +57,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const memberName = (deliverable.submitted_by_member as { full_name?: string } | null)?.full_name ?? "L'administration"
   const projectInfo = deliverable.project as { client_name?: string; commercial_id?: string | null } | null
   const projectName = projectInfo?.client_name ?? 'Projet'
-  await notifyDeliverableSubmitted(memberName, projectName, deliverable.version, projectInfo?.commercial_id)
+  await notifyDeliverableSubmitted(memberName, projectName, deliverable.version, projectInfo?.commercial_id, deliverable.project_id)
 
   return NextResponse.json({ ok: true, deliverable: updated })
 }

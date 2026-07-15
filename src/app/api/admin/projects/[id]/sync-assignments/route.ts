@@ -30,8 +30,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const typeName = (project.project_type as unknown as { name?: string } | null)?.name ?? '—'
 
   await Promise.all([
-    ...added.map((memberId) => notifyProjectAssigned(memberId, project.client_name, typeName, project.deadline)),
-    ...removed.map((memberId) => notifyProjectReassigned(memberId, project.client_name, false)),
+    ...added.map((memberId) => notifyProjectAssigned(memberId, project.client_name, typeName, project.deadline, id)),
+    ...removed.map((memberId) => notifyProjectReassigned(memberId, project.client_name, false, id)),
   ])
 
   return NextResponse.json({ ok: true })
