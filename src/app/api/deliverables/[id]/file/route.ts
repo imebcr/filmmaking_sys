@@ -20,6 +20,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const url = new URL(request.url)
   const variant = url.searchParams.get('variant') === 'thumbnail' ? 'thumbnail' : 'original'
   const shareToken = url.searchParams.get('share_token')
+  const downloadToken = url.searchParams.get('download_token')
   const forceDownload = url.searchParams.get('download') === '1'
 
   const supabase = createServerSupabaseClient()
@@ -44,6 +45,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       authorized = true
       isClientShareAccess = true
     }
+  }
+
+  // The "copy link" button generates this — a plain, non-expiring link meant to be
+  // pasted anywhere (Slack/WhatsApp/etc.) and clicked without needing to be logged in
+  // as any particular identity in that browser tab.
+  if (!authorized && downloadToken && deliverable.download_token && deliverable.download_token === downloadToken) {
+    authorized = true
   }
 
   if (!authorized) return NextResponse.json({ error: 'Accès refusé.' }, { status: 403 })

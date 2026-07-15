@@ -152,6 +152,19 @@ ALTER TABLE project_files DISABLE ROW LEVEL SECURITY;
 ALTER TABLE editors DROP CONSTRAINT IF EXISTS editors_email_key;
 CREATE UNIQUE INDEX IF NOT EXISTS editors_email_active_key ON editors(email) WHERE is_active = true;
 
+-- ─── deliverables — persistent internal download link ───────
+-- Separate from client_share_token (that one's the expiring, client-review link with
+-- decision buttons). This one is what the "copy link" button generates — a plain,
+-- session-independent link any team member can paste and click, no login required
+-- in that browser tab. Not expiring, since it's meant to be shared internally.
+ALTER TABLE deliverables ADD COLUMN IF NOT EXISTS download_token TEXT;
+UPDATE deliverables SET download_token = uuid_generate_v4()::text WHERE download_token IS NULL;
+ALTER TABLE deliverables ALTER COLUMN download_token SET DEFAULT uuid_generate_v4()::text;
+DO $$ BEGIN
+  ALTER TABLE deliverables ADD CONSTRAINT deliverables_download_token_key UNIQUE (download_token);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- ─── editor_assignments — survive a hard-deleted editor ─────
 -- "Delete" on a team member is now a real DELETE FROM editors (not a soft flag), so any
 -- assignment they had must keep a name snapshot instead of relying on the FK join, and the

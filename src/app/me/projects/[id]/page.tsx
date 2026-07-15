@@ -192,7 +192,7 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
                           }>
                             {d.status === 'validated' ? 'Validé' : d.status === 'rejected' ? 'Rejeté' : d.status === 'submitted' ? 'En attente' : d.status}
                           </span>
-                          <a href={`/api/deliverables/${d.id}/file?download=1`} className="p-1 text-navy/40 hover:text-brand transition-colors" title="Télécharger">
+                          <a href={`/api/deliverables/${d.id}/file?download=1${d.download_token ? `&download_token=${d.download_token}` : ''}`} className="p-1 text-navy/40 hover:text-brand transition-colors" title="Télécharger">
                             <Download size={12} />
                           </a>
                         </div>

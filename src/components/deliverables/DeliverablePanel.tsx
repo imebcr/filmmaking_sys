@@ -26,8 +26,17 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
 }
 
-function downloadHref(deliverableId: string): string {
-  return `/api/deliverables/${deliverableId}/file?download=1`
+function fileHref(deliverableId: string, downloadToken: string | null, opts: { download?: boolean; thumbnail?: boolean } = {}): string {
+  const params = new URLSearchParams()
+  if (opts.download) params.set('download', '1')
+  if (opts.thumbnail) params.set('variant', 'thumbnail')
+  if (downloadToken) params.set('download_token', downloadToken)
+  const qs = params.toString()
+  return `/api/deliverables/${deliverableId}/file${qs ? `?${qs}` : ''}`
+}
+
+function downloadHref(deliverableId: string, downloadToken: string | null): string {
+  return fileHref(deliverableId, downloadToken, { download: true })
 }
 
 // navigator.clipboard is only available in secure contexts (HTTPS or localhost) — this
@@ -57,10 +66,10 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-function CopyDownloadLink({ deliverableId }: { deliverableId: string }) {
+function CopyDownloadLink({ deliverableId, downloadToken }: { deliverableId: string; downloadToken: string | null }) {
   const [copied, setCopied] = useState(false)
   const handleCopy = async () => {
-    const url = `${window.location.origin}${downloadHref(deliverableId)}`
+    const url = `${window.location.origin}${downloadHref(deliverableId, downloadToken)}`
     const ok = await copyToClipboard(url)
     if (ok) {
       setCopied(true)
@@ -70,7 +79,7 @@ function CopyDownloadLink({ deliverableId }: { deliverableId: string }) {
   return (
     <div className="flex items-center gap-1 shrink-0">
       <a
-        href={downloadHref(deliverableId)}
+        href={downloadHref(deliverableId, downloadToken)}
         className="p-1.5 rounded-lg text-navy/40 hover:text-brand hover:bg-brand/10 transition-colors"
         title="Télécharger"
       >
@@ -118,7 +127,7 @@ function PastStageBlock({ projectId, stage, deliverables }: { projectId: string;
                 v{d.version} · {formatBytes(d.size_bytes)} · {formatDate(d.submitted_at)}
               </span>
               {statusBadge(d.status)}
-              <CopyDownloadLink deliverableId={d.id} />
+              <CopyDownloadLink deliverableId={d.id} downloadToken={d.download_token} />
             </div>
           )
         })}
@@ -228,22 +237,23 @@ export default function DeliverablePanel({ project }: { project: Project }) {
               </div>
 
               <div className="flex items-center justify-end">
-                <CopyDownloadLink deliverableId={current.id} />
+                <CopyDownloadLink deliverableId={current.id} downloadToken={current.download_token} />
               </div>
 
-              {/* Preview */}
+              {/* Preview — native <video>/<img> requests can't carry the admin's Bearer token,
+                  so these use the session-independent download_token too, same as the copy link. */}
               {current.mime_type.startsWith('video/') && (
-                <video controls className="w-full rounded-lg max-h-64 bg-black" src={`/api/deliverables/${current.id}/file`} poster={current.thumbnail_path ? `/api/deliverables/${current.id}/file?variant=thumbnail` : undefined} />
+                <video controls className="w-full rounded-lg max-h-64 bg-black" src={fileHref(current.id, current.download_token)} poster={current.thumbnail_path ? fileHref(current.id, current.download_token, { thumbnail: true }) : undefined} />
               )}
               {current.mime_type.startsWith('audio/') && (
-                <audio controls className="w-full" src={`/api/deliverables/${current.id}/file`} />
+                <audio controls className="w-full" src={fileHref(current.id, current.download_token)} />
               )}
               {current.mime_type.startsWith('image/') && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={`/api/deliverables/${current.id}/file`} alt="Aperçu" className="w-full rounded-lg max-h-64 object-contain bg-navy/5" />
+                <img src={fileHref(current.id, current.download_token)} alt="Aperçu" className="w-full rounded-lg max-h-64 object-contain bg-navy/5" />
               )}
               {!current.mime_type.startsWith('video/') && !current.mime_type.startsWith('audio/') && !current.mime_type.startsWith('image/') && (
-                <a href={`/api/deliverables/${current.id}/file`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-brand text-xs font-semibold hover:text-ocean">
+                <a href={fileHref(current.id, current.download_token)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-brand text-xs font-semibold hover:text-ocean">
                   <Eye size={13} /> Ouvrir le fichier
                 </a>
               )}
@@ -327,7 +337,7 @@ export default function DeliverablePanel({ project }: { project: Project }) {
                     <span className="text-navy/60">v{d.version} · {formatDate(d.submitted_at)}</span>
                     <div className="flex items-center gap-2">
                       {statusBadge(d.status)}
-                      <CopyDownloadLink deliverableId={d.id} />
+                      <CopyDownloadLink deliverableId={d.id} downloadToken={d.download_token} />
                     </div>
                   </div>
                 ))}
