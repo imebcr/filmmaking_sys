@@ -12,20 +12,11 @@ import {
   sendDailyRiskSummaryEmail,
 } from '@/lib/mailer'
 
-function isQuietHours(member: TeamMember): boolean {
-  const now = new Date()
-  const hh = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  const start = (member.quiet_hours_start ?? '22:00:00').slice(0, 5)
-  const end = (member.quiet_hours_end ?? '08:00:00').slice(0, 5)
-  if (start <= end) return hh >= start && hh < end
-  return hh >= start || hh < end
-}
-
 interface NotifyParams {
   recipientId: string
   eventType: string
   payload: Record<string, unknown>
-  /** Critical events bypass channel preferences and quiet hours (CDC §6.1). */
+  /** Critical events bypass channel preferences (CDC §6.1). */
   forced?: boolean
   sendEmail: (member: TeamMember) => Promise<unknown>
   telegramText?: (member: TeamMember) => string
@@ -57,7 +48,9 @@ export async function notify(params: NotifyParams): Promise<void> {
     console.warn(`[notify:${params.eventType}] ${m.full_name} (${m.id}) has no email set — email skipped.`)
   }
 
-  const telegramAllowed = params.forced || (prefs.telegram !== false && !isQuietHours(m))
+  // No quiet-hours gate — members can no longer configure that window (UI was removed),
+  // so Telegram now sends immediately at any hour, same as email.
+  const telegramAllowed = params.forced || prefs.telegram !== false
   if (telegramAllowed && m.telegram_chat_id && params.telegramText) {
     await sendTelegramMessage(m.telegram_chat_id, params.telegramText(m))
     channels.push('telegram')
