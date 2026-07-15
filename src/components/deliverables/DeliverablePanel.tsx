@@ -8,6 +8,7 @@ import { DELIVERABLE_STAGES, STAGE_LABELS } from '@/lib/types'
 import { adminFetch } from '@/lib/admin-fetch'
 import { formatDate } from '@/lib/utils'
 import AdminDeliverableUpload from './AdminDeliverableUpload'
+import Select from '@/components/ui/Select'
 
 const REJECTION_REASONS = ['Qualité technique', 'Non conforme au brief', 'Fichier corrompu', 'Autre']
 
@@ -253,9 +254,9 @@ export default function DeliverablePanel({ project }: { project: Project }) {
                 <>
                   {rejecting ? (
                     <div className="space-y-2 pt-1">
-                      <select value={reason} onChange={(e) => setReason(e.target.value)} className="text-xs">
+                      <Select value={reason} onChange={setReason} className="text-xs">
                         {REJECTION_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </select>
+                      </Select>
                       <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="resize-none text-xs" placeholder="Commentaire (optionnel)" />
                       <div className="flex gap-2">
                         <button onClick={() => setRejecting(false)} className="flex-1 py-1.5 rounded-xl border border-silver text-navy/50 hover:text-navy text-xs transition-colors">Annuler</button>

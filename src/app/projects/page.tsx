@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Search, Download } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import ProjectDetailModal from '@/components/project/ProjectDetailModal'
+import Select from '@/components/ui/Select'
 import { useApp } from '@/context/AppContext'
 import { STAGE_LABELS, type Project } from '@/lib/types'
 import { formatDZD, formatDate } from '@/lib/utils'
@@ -82,14 +83,14 @@ export default function ProjectsListPage() {
               style={{ paddingLeft: '2rem' }}
             />
           </div>
-          <select value={filterTypeId} onChange={(e) => setFilterTypeId(e.target.value)} className="text-xs" style={{ width: 'auto' }}>
+          <Select value={filterTypeId} onChange={setFilterTypeId} className="text-xs" style={{ width: 180 }}>
             <option value="">Tous les types</option>
             {projectTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <select value={filterStage} onChange={(e) => setFilterStage(e.target.value)} className="text-xs" style={{ width: 'auto' }}>
+          </Select>
+          <Select value={filterStage} onChange={setFilterStage} className="text-xs" style={{ width: 180 }}>
             <option value="">Toutes les étapes</option>
             {Object.entries(STAGE_LABELS).map(([s, label]) => <option key={s} value={s}>{label}</option>)}
-          </select>
+          </Select>
         </div>
 
         {error && (

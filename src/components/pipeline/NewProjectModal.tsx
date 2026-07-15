@@ -7,6 +7,8 @@ import { useApp } from '@/context/AppContext'
 import { syncAssignments } from '@/lib/sync-assignments'
 import { adminFetch } from '@/lib/admin-fetch'
 import Modal from '@/components/ui/Modal'
+import Select from '@/components/ui/Select'
+import DatePicker from '@/components/ui/DatePicker'
 import { DELIVERABLE_STAGES, STAGE_LABELS, ROLE_TO_STAKEHOLDER, TEAM_MEMBER_ROLE_LABELS, type TeamMemberRole } from '@/lib/types'
 
 interface Props {
@@ -175,10 +177,10 @@ export default function NewProjectModal({ open, onClose }: Props) {
           </div>
           <div>
             <Label>Commercial responsable *</Label>
-            <select value={commercialId} onChange={(e) => setCommercialId(e.target.value)}>
+            <Select value={commercialId} onChange={setCommercialId}>
               <option value="">Sélectionner…</option>
               {commercials.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-            </select>
+            </Select>
             {commercials.length === 0 && (
               <p className="text-navy/35 text-[11px] mt-1">Aucun membre avec le rôle Commercial pour l’instant.</p>
             )}
@@ -196,14 +198,14 @@ export default function NewProjectModal({ open, onClose }: Props) {
               {quantity > 1 && <p className="sm:col-span-2 text-navy/45 text-xs font-semibold">Vidéo {i + 1}</p>}
               <div>
                 <Label>Type *</Label>
-                <select value={v.project_type_id} onChange={(e) => updateVideo(i, 'project_type_id', e.target.value)} className="text-xs">
+                <Select value={v.project_type_id} onChange={(val) => updateVideo(i, 'project_type_id', val)} className="text-xs">
                   <option value="">Sélectionner…</option>
                   {projectTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                </Select>
               </div>
               <div>
                 <Label>Deadline *</Label>
-                <input type="date" value={v.deadline} onChange={(e) => updateVideo(i, 'deadline', e.target.value)} className="text-xs" />
+                <DatePicker value={v.deadline} onChange={(val) => updateVideo(i, 'deadline', val)} className="text-xs" />
               </div>
             </div>
           ))}
@@ -217,10 +219,10 @@ export default function NewProjectModal({ open, onClose }: Props) {
             return (
               <div key={role}>
                 <Label>{TEAM_MEMBER_ROLE_LABELS[role]}</Label>
-                <select value={team[role] ?? ''} onChange={(e) => setTeam((t) => ({ ...t, [role]: e.target.value }))}>
+                <Select value={team[role] ?? ''} onChange={(v) => setTeam((t) => ({ ...t, [role]: v }))}>
                   <option value="">Aucun</option>
                   {candidates.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-                </select>
+                </Select>
                 {candidates.length === 0 && (
                   <p className="text-navy/35 text-[11px] mt-1">Aucun membre {stakeholderRole ?? ''}.</p>
                 )}

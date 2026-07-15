@@ -18,6 +18,7 @@ import AssignStageModal from './AssignStageModal'
 import StageGateModal from './StageGateModal'
 import ProjectDetailModal from '@/components/project/ProjectDetailModal'
 import NewProjectModal from './NewProjectModal'
+import Select from '@/components/ui/Select'
 
 export default function KanbanBoard() {
   const { projects, projectTypes, updateProject } = useApp()
@@ -99,17 +100,17 @@ export default function KanbanBoard() {
             style={{ paddingLeft: '2rem' }}
           />
         </div>
-        <select
+        <Select
           value={filterTypeId}
-          onChange={(e) => setFilterTypeId(e.target.value)}
+          onChange={setFilterTypeId}
           className="text-xs"
-          style={{ width: 'auto' }}
+          style={{ width: 180 }}
         >
           <option value="">All Types</option>
           {projectTypes.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

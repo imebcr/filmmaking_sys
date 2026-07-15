@@ -8,6 +8,7 @@ import { SPECIALTY_LABELS, TEAM_MEMBER_ROLES, TEAM_MEMBER_ROLE_LABELS } from '@/
 import { useApp } from '@/context/AppContext'
 import { adminFetch } from '@/lib/admin-fetch'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import Select from '@/components/ui/Select'
 
 interface EditorFormState {
   full_name: string
@@ -78,16 +79,16 @@ function EditorForm({ initial, onSave, onCancel }: {
         </div>
         <div>
           <Label>Type de contrat</Label>
-          <select value={form.contract_type} onChange={(e) => set('contract_type', e.target.value as ContractType)}>
+          <Select value={form.contract_type} onChange={(v) => set('contract_type', v as ContractType)}>
             <option value="freelance">Freelance</option>
             <option value="staff">Staff</option>
-          </select>
+          </Select>
         </div>
         <div>
           <Label>Spécialité (montage)</Label>
-          <select value={form.specialty} onChange={(e) => set('specialty', e.target.value as EditorSpecialty)}>
+          <Select value={form.specialty} onChange={(v) => set('specialty', v as EditorSpecialty)}>
             {Object.entries(SPECIALTY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
+          </Select>
         </div>
         <div>
           <Label>Niveau</Label>
@@ -254,10 +255,10 @@ export default function EditorRoster() {
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="w-auto" />
             Afficher les désactivés
           </label>
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as TeamMemberRole | '')} className="text-xs" style={{ width: 'auto' }}>
+          <Select value={roleFilter} onChange={(v) => setRoleFilter(v as TeamMemberRole | '')} className="text-xs" style={{ width: 180 }}>
             <option value="">Tous les rôles</option>
             {TEAM_MEMBER_ROLES.map((r) => <option key={r} value={r}>{TEAM_MEMBER_ROLE_LABELS[r]}</option>)}
-          </select>
+          </Select>
           <motion.button
             onClick={() => setShowNew(true)}
             whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}

@@ -7,6 +7,8 @@ import { motion } from 'framer-motion'
 import type { Project } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
 import Modal from '@/components/ui/Modal'
+import Select from '@/components/ui/Select'
+import DatePicker from '@/components/ui/DatePicker'
 import { syncAssignments } from '@/lib/sync-assignments'
 
 interface Props {
@@ -81,10 +83,10 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
 
         <div>
           <label className="block text-navy/50 text-xs mb-1.5 font-medium">Editor</label>
-          <select value={editorId} onChange={(e) => setEditorId(e.target.value)}>
+          <Select value={editorId} onChange={setEditorId}>
             <option value="">Select an editor…</option>
             {eligibleEditors.map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-          </select>
+          </Select>
           {eligibleEditors.length === 0 && (
             <p className="text-navy/35 text-[11px] mt-1">No team members with the Éditeur role yet.</p>
           )}
@@ -92,7 +94,7 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
 
         <div>
           <label className="block text-navy/50 text-xs mb-1.5 font-medium">Start Date</label>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <DatePicker value={startDate} onChange={setStartDate} />
         </div>
 
         <div>

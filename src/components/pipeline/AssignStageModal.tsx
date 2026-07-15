@@ -7,6 +7,7 @@ import { STAGE_LABELS, STAKEHOLDER_LABELS, ROLE_TO_STAKEHOLDER } from '@/lib/typ
 import { useApp } from '@/context/AppContext'
 import { syncAssignments } from '@/lib/sync-assignments'
 import Modal from '@/components/ui/Modal'
+import Select from '@/components/ui/Select'
 
 interface Props {
   open: boolean
@@ -91,13 +92,13 @@ export default function AssignStageModal({ open, project, targetStage, onClose, 
           return (
             <div key={role}>
               <label className="block text-navy/50 text-xs mb-1.5 font-medium">{STAKEHOLDER_LABELS[stakeholderRole]}</label>
-              <select
+              <Select
                 value={selections[role] ?? ''}
-                onChange={(e) => setSelections((s) => ({ ...s, [role]: e.target.value }))}
+                onChange={(v) => setSelections((s) => ({ ...s, [role]: v }))}
               >
                 <option value="">Aucun</option>
                 {candidates.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-              </select>
+              </Select>
               {candidates.length === 0 && (
                 <p className="text-navy/35 text-[11px] mt-1">Aucun membre avec ce rôle pour l’instant.</p>
               )}

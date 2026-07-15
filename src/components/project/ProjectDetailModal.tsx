@@ -8,6 +8,8 @@ import { STAGE_LABELS, DELIVERABLE_STAGES, ROLE_TO_STAKEHOLDER, TEAM_MEMBER_ROLE
 import { useApp } from '@/context/AppContext'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
+import Select from '@/components/ui/Select'
+import DatePicker from '@/components/ui/DatePicker'
 import DeliverablePanel from '@/components/deliverables/DeliverablePanel'
 import ProjectFilesSection from '@/components/project/ProjectFilesSection'
 import { syncAssignments } from '@/lib/sync-assignments'
@@ -178,10 +180,10 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
 
             <div>
               <Label>Project Type</Label>
-              <select value={projectTypeId} onChange={(e) => setProjectTypeId(e.target.value)}>
+              <Select value={projectTypeId} onChange={setProjectTypeId}>
                 <option value="">Select type…</option>
                 {projectTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+              </Select>
               {selectedType && <div className="mt-1.5"><Badge projectType={selectedType} small /></div>}
             </div>
 
@@ -192,7 +194,7 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
 
             <div>
               <Label>Deadline</Label>
-              <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+              <DatePicker value={deadline} onChange={setDeadline} />
             </div>
 
             <div>
@@ -202,10 +204,10 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
 
             <div>
               <Label>Commercial responsable</Label>
-              <select value={commercialId} onChange={(e) => setCommercialId(e.target.value)}>
+              <Select value={commercialId} onChange={setCommercialId}>
                 <option value="">Aucun</option>
                 {commercials.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-              </select>
+              </Select>
             </div>
 
             <div className="sm:col-span-2">
@@ -295,10 +297,10 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
               return (
                 <div key={role}>
                   <Label>{TEAM_MEMBER_ROLE_LABELS[role]}</Label>
-                  <select value={team[role] ?? ''} onChange={(e) => setTeam((t) => ({ ...t, [role]: e.target.value }))}>
+                  <Select value={team[role] ?? ''} onChange={(v) => setTeam((t) => ({ ...t, [role]: v }))}>
                     <option value="">Aucun</option>
                     {candidates.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-                  </select>
+                  </Select>
                   {candidates.length === 0 && (
                     <p className="text-navy/35 text-[11px] mt-1">Aucun membre {TEAM_MEMBER_ROLE_LABELS[role]}.</p>
                   )}
@@ -317,9 +319,9 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
             {currentAssignment && (
               <div>
                 <Label>Éditeur (montage)</Label>
-                <select value={editorId} onChange={(e) => setEditorId(e.target.value)}>
+                <Select value={editorId} onChange={setEditorId}>
                   {eligibleEditorsForCut.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
-                </select>
+                </Select>
               </div>
             )}
           </div>
