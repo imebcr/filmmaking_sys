@@ -15,11 +15,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const supabase = createServerSupabaseClient()
   const { data: project, error } = await supabase
     .from('projects')
-    .select('id, client_name, description, stage_requirements, stage, deadline, revision_count, revisions_allowed, started_at, created_at, project_type:project_types(name, color, stages), deliverables(*)')
+    .select('id, client_name, description, stage_requirements, stage, deadline, revision_count, revisions_allowed, started_at, created_at, commercial_id, project_type:project_types(name, color, stages), deliverables(*), stakeholders:project_stakeholders(editor_id, name), editor_assignments(editor_id, editor_name)')
     .eq('id', id)
     .single()
 
   if (error || !project) return NextResponse.json({ error: 'Projet introuvable.' }, { status: 404 })
+
+  const participantsMap = new Map<string, string>()
+  for (const s of project.stakeholders ?? []) {
+    if (s.editor_id && s.name) participantsMap.set(s.editor_id, s.name)
+  }
+  for (const a of project.editor_assignments ?? []) {
+    if (a.editor_id && a.editor_name) participantsMap.set(a.editor_id, a.editor_name)
+  }
+  if (project.commercial_id && !participantsMap.has(project.commercial_id)) {
+    const { data: commercial } = await supabase.from('editors').select('id, full_name').eq('id', project.commercial_id).single()
+    if (commercial) participantsMap.set(commercial.id, commercial.full_name)
+  }
+  const participants = Array.from(participantsMap.entries()).map(([pid, name]) => ({ id: pid, name }))
 
   // Used for this member's own upload-status gating (can they submit for the current stage?).
   const myDeliverables = (project.deliverables ?? [])
@@ -32,6 +45,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .filter((d) => d.status !== 'uploading')
     .sort((a, b) => b.version - a.version)
 
-  const { deliverables: _all, ...rest } = project
-  return NextResponse.json({ project: { ...rest, myDeliverables, allDeliverables } })
+  const { deliverables: _all, stakeholders: _stakeholders, editor_assignments: _assignments, ...rest } = project
+  return NextResponse.json({ project: { ...rest, myDeliverables, allDeliverables, participants } })
 }

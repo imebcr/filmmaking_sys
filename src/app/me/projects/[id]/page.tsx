@@ -7,6 +7,7 @@ import type { Deliverable, ProjectStage } from '@/lib/types'
 import { STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 import { useResumableUpload } from '@/lib/use-resumable-upload'
+import ProjectChatPanel from '@/components/project/ProjectChatPanel'
 
 interface MemberProjectDetail {
   id: string
@@ -20,6 +21,7 @@ interface MemberProjectDetail {
   started_at: string | null
   myDeliverables: Deliverable[]
   allDeliverables: Deliverable[]
+  participants: { id: string; name: string }[]
 }
 
 export default function MemberProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -223,6 +225,8 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
             </div>
           </section>
         )}
+
+        <ProjectChatPanel projectId={project.id} participants={project.participants} />
       </div>
     </div>
   )

@@ -12,6 +12,7 @@ import Select from '@/components/ui/Select'
 import DatePicker from '@/components/ui/DatePicker'
 import DeliverablePanel from '@/components/deliverables/DeliverablePanel'
 import ProjectFilesSection from '@/components/project/ProjectFilesSection'
+import ProjectChatPanel from '@/components/project/ProjectChatPanel'
 import { syncAssignments } from '@/lib/sync-assignments'
 
 // Team roles assigned up front, same set offered when the project is created.
@@ -84,6 +85,21 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
 
   const currentAssignment = (project.editor_assignments ?? [])[0]
   const eligibleEditorsForCut = editors.filter((e) => (e.roles ?? []).includes('editeur'))
+
+  const chatParticipants = (() => {
+    const map = new Map<string, string>()
+    for (const s of project.stakeholders ?? []) {
+      if (s.editor_id && s.name) map.set(s.editor_id, s.name)
+    }
+    for (const a of project.editor_assignments ?? []) {
+      if (a.editor_id && a.editor_name) map.set(a.editor_id, a.editor_name)
+    }
+    if (project.commercial_id) {
+      const commercial = editors.find((e) => e.id === project.commercial_id)
+      if (commercial) map.set(commercial.id, commercial.full_name)
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }))
+  })()
 
   useEffect(() => {
     loadFromProject(project)
@@ -287,6 +303,9 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject }
 
         {/* Deliverable validation */}
         <DeliverablePanel project={project} />
+
+        {/* Team chat — closes automatically 24h after the project is marked Delivered */}
+        <ProjectChatPanel projectId={project.id} participants={chatParticipants} />
 
         {/* Team — same roles offered at creation. The editor is assigned separately, only when the card reaches Editing. */}
         <section>
