@@ -90,9 +90,9 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
         onClick={(e) => { if (!confirming) { e.stopPropagation(); onClick() } }}
         className={`glass-sm rounded-2xl p-3.5 mb-2.5 select-none cursor-grab active:cursor-grabbing relative group ${
           pendingDeliverable
-            ? 'border-l-4 border-l-amber-400 bg-amber-50/40'
+            ? 'border-l-4 border-l-amber-400 bg-amber-100/70'
             : rejectedDeliverable
-              ? 'border-l-4 border-l-red-400'
+              ? 'border-l-4 border-l-red-400 bg-red-100/60'
               : isActiveStage ? 'border-l-4 border-l-brand' : ''
         }`}
       >

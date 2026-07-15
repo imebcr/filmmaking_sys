@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import type { Project, ProjectStage, TeamMemberRole } from '@/lib/types'
 import { STAGE_LABELS, DELIVERABLE_STAGES, ROLE_TO_STAKEHOLDER, TEAM_MEMBER_ROLE_LABELS } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
+import { hasPendingDeliverable } from '@/lib/stage-rules'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
 import Select from '@/components/ui/Select'
@@ -186,6 +187,11 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
 
   const selectedType = projectTypes.find((t) => t.id === projectTypeId)
 
+  // A deliverable awaiting review (or a rejected one) needs to be front and center —
+  // surface it right after General instead of buried below the client/stage sections.
+  const rejectedDeliverable = (project.deliverables ?? []).some((d) => d.stage === project.stage && d.status === 'rejected')
+  const deliverableFirst = hasPendingDeliverable(project) || rejectedDeliverable
+
   return (
     <Modal open onClose={onClose} title="Project Details" size="lg">
       <div className="space-y-6">
@@ -246,6 +252,9 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
             </div>
           </div>
         </section>
+
+        {/* Deliverable awaiting review (or rejected) — surfaced right after General */}
+        {deliverableFirst && <DeliverablePanel project={project} />}
 
         {/* Sibling videos from the same client order */}
         {orderSiblings.length > 0 && (
@@ -310,8 +319,8 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
         {/* Reference files */}
         <ProjectFilesSection project={project} />
 
-        {/* Deliverable validation */}
-        <DeliverablePanel project={project} />
+        {/* Deliverable validation (already surfaced above General when awaiting review/rejected) */}
+        {!deliverableFirst && <DeliverablePanel project={project} />}
 
         {/* Team chat — closes automatically 24h after the project is marked Delivered */}
         <ProjectChatPanel projectId={project.id} participants={chatParticipants} />
