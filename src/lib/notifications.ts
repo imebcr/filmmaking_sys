@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/server-supabase'
 import { sendTelegramMessage } from '@/lib/telegram'
-import type { TeamMember } from '@/lib/types'
+import type { TeamMember, ProjectStage } from '@/lib/types'
+import { STAGE_LABELS } from '@/lib/types'
 import {
   sendInvitationEmail,
   sendProjectAssignedEmail,
@@ -138,13 +139,14 @@ export async function notifyInvitationSent(memberId: string, email: string, toke
   })
 }
 
-export async function notifyProjectAssigned(memberId: string, projectName: string, projectType: string, deadline: string | null, projectId?: string) {
+export async function notifyProjectAssigned(memberId: string, projectName: string, projectType: string, deadline: string | null, projectId?: string, stage?: ProjectStage) {
+  const stageLabel = stage ? STAGE_LABELS[stage] : null
   await notify({
     recipientId: memberId,
     eventType: 'project_assigned',
-    payload: { projectName, projectType, deadline, projectId },
-    sendEmail: (m) => sendProjectAssignedEmail(m.email!, m.full_name, projectName, projectType, deadline),
-    telegramText: (m) => `📋 Nouveau projet assigné : <b>${projectName}</b> (${projectType})${deadline ? `\nÉchéance : ${deadline}` : ''}\nBonjour ${m.full_name}`,
+    payload: { projectName, projectType, deadline, projectId, stage },
+    sendEmail: (m) => sendProjectAssignedEmail(m.email!, m.full_name, projectName, projectType, deadline, stageLabel ?? '—'),
+    telegramText: (m) => `📋 Nouveau projet assigné : <b>${projectName}</b> (${projectType})${stageLabel ? `\nÉtape : <b>${stageLabel}</b>` : ''}${deadline ? `\nÉchéance : ${deadline}` : ''}\nBonjour ${m.full_name}`,
   })
 }
 

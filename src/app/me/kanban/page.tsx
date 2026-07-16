@@ -68,6 +68,9 @@ export default function MemberKanbanPage() {
                             {p.project_type.name}
                           </span>
                         )}
+                        {p.description && (
+                          <p className="text-navy/50 text-[11px] mb-1.5 line-clamp-2">{p.description}</p>
+                        )}
                         {p.deadline && (
                           <div className="flex items-center gap-1 text-navy/45 text-[11px]">
                             <Calendar size={10} /> {formatDate(p.deadline)}

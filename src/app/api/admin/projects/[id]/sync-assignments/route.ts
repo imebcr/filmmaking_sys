@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const supabase = createServerSupabaseClient()
   const { data: project } = await supabase
     .from('projects')
-    .select('client_name, deadline, project_type:project_types(name)')
+    .select('client_name, deadline, stage, project_type:project_types(name)')
     .eq('id', id)
     .single()
 
@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const typeName = (project.project_type as unknown as { name?: string } | null)?.name ?? '—'
 
   await Promise.all([
-    ...added.map((memberId) => notifyProjectAssigned(memberId, project.client_name, typeName, project.deadline, id)),
+    ...added.map((memberId) => notifyProjectAssigned(memberId, project.client_name, typeName, project.deadline, id, project.stage)),
     ...removed.map((memberId) => notifyProjectReassigned(memberId, project.client_name, false, id)),
   ])
 

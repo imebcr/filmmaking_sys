@@ -75,13 +75,13 @@ export async function sendPasswordResetEmail(email: string, token: string, membe
   }))
 }
 
-export async function sendProjectAssignedEmail(email: string, memberName: string, projectName: string, projectType: string, deadline: string | null) {
+export async function sendProjectAssignedEmail(email: string, memberName: string, projectName: string, projectType: string, deadline: string | null, stageLabel: string) {
   const link = `${appUrl}/me`
   const subject = `Nouveau projet assigné — ${projectName}`
   return sendMail(email, subject, emailLayout({
     preheader: `Le projet ${projectName} vous a été assigné.`,
     heading: `Bonjour ${memberName}`,
-    bodyHtml: `<p style="margin:0 0 8px;">Le projet <strong>${projectName}</strong> (${projectType}) vous a été assigné.</p>${deadline ? `<p style="margin:0;">Échéance : <strong>${deadline}</strong></p>` : ''}`,
+    bodyHtml: `<p style="margin:0 0 8px;">Le projet <strong>${projectName}</strong> (${projectType}) vous a été assigné, actuellement à l'étape <strong>${stageLabel}</strong>.</p>${deadline ? `<p style="margin:0;">Échéance : <strong>${deadline}</strong></p>` : ''}`,
     ctaLabel: 'Voir mes projets',
     ctaUrl: link,
   }))

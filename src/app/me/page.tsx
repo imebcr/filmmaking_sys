@@ -28,6 +28,12 @@ export default function MemberDashboardPage() {
   else rangeStart.setMonth(now.getMonth() - 1)
   const done = projects.filter((p) => p.stage === 'delivered' && new Date(p.updated_at) >= rangeStart)
 
+  // Three mutually-exclusive groups for the list below: rejected first, then everything
+  // else in progress, then completed projects tucked into their own checklist-style section.
+  const rejectedList = rejected
+  const activeList = projects.filter((p) => p.stage !== 'delivered' && !p.isRejected)
+  const completedList = projects.filter((p) => p.stage === 'delivered')
+
   return (
     <div className="min-h-screen">
       <div className="px-6 py-5 border-b border-white/50 bg-white/20 backdrop-blur-sm">
@@ -74,51 +80,95 @@ export default function MemberDashboardPage() {
             </div>
           </div>
 
-          {/* Project list */}
-          <section>
-            <h2 className="text-navy font-semibold mb-3">Mes projets</h2>
-            {projects.length === 0 ? (
+          {/* Project list — rejected first, then everything in progress, completed tucked below */}
+          {projects.length === 0 ? (
+            <section>
+              <h2 className="text-navy font-semibold mb-3">Mes projets</h2>
               <p className="text-navy/40 text-sm glass-sm rounded-2xl p-6 text-center">Aucun projet assigné pour le moment.</p>
-            ) : (
-              <div className="space-y-2">
-                {projects.map((p, i) => (
-                  <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-                    <Link href={`/me/projects/${p.id}`}>
-                      <div className={`glass-sm rounded-2xl px-4 py-3 flex items-center gap-3 hover:bg-white/50 transition-colors ${p.isRejected ? 'border-l-4 border-l-red-400' : ''}`}>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-navy font-semibold text-sm">{p.client_name}</p>
-                            {p.project_type && (
-                              <span className="text-[10px] font-semibold rounded-full px-2 py-0.5" style={{ background: p.project_type.color + '18', color: p.project_type.color, border: `1px solid ${p.project_type.color}35` }}>
-                                {p.project_type.name}
-                              </span>
-                            )}
-                            {p.isRejected && (
-                              <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 bg-red-50 text-red-600 border border-red-200">Rejeté — à reprendre</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-navy/45 text-xs">
-                            <span>{STAGE_LABELS[p.stage]}</span>
-                            {p.deadline && (
-                              <span className="flex items-center gap-1"><Calendar size={11} /> {formatDate(p.deadline)}</span>
-                            )}
-                          </div>
+            </section>
+          ) : (
+            <>
+              {rejectedList.length > 0 && (
+                <section>
+                  <h2 className="text-navy font-semibold mb-3">Rejetés — à reprendre</h2>
+                  <div className="space-y-2">
+                    {rejectedList.map((p, i) => <ProjectRow key={p.id} p={p} delay={i * 0.03} />)}
+                  </div>
+                </section>
+              )}
+
+              {activeList.length > 0 && (
+                <section>
+                  <h2 className="text-navy font-semibold mb-3">En cours</h2>
+                  <div className="space-y-2">
+                    {activeList.map((p, i) => <ProjectRow key={p.id} p={p} delay={i * 0.03} />)}
+                  </div>
+                </section>
+              )}
+
+              {completedList.length > 0 && (
+                <section>
+                  <h2 className="text-navy font-semibold mb-3 flex items-center gap-2">
+                    <CheckCircle2 size={15} className="text-emerald-500" /> Terminés ({completedList.length})
+                  </h2>
+                  <div className="space-y-1.5">
+                    {completedList.map((p) => (
+                      <Link key={p.id} href={`/me/projects/${p.id}`}>
+                        <div className="glass-sm rounded-xl px-4 py-2.5 flex items-center gap-3 hover:bg-white/50 transition-colors opacity-70">
+                          <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                          <span className="flex-1 min-w-0 truncate text-navy text-sm">{p.client_name}</span>
+                          {p.project_type && (
+                            <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 shrink-0" style={{ background: p.project_type.color + '18', color: p.project_type.color, border: `1px solid ${p.project_type.color}35` }}>
+                              {p.project_type.name}
+                            </span>
+                          )}
                         </div>
-                        <div className="w-16 shrink-0">
-                          <div className="h-1.5 rounded-full bg-navy/10 overflow-hidden">
-                            <div className="h-full bg-brand rounded-full" style={{ width: `${p.percentComplete}%` }} />
-                          </div>
-                          <p className="text-navy/35 text-[10px] text-right mt-1">{p.percentComplete}%</p>
-                        </div>
-                      </div>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </section>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>
+  )
+}
+
+function ProjectRow({ p, delay }: { p: MemberProjectListItem; delay: number }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
+      <Link href={`/me/projects/${p.id}`}>
+        <div className={`glass-sm rounded-2xl px-4 py-3 flex items-center gap-3 hover:bg-white/50 transition-colors ${p.isRejected ? 'border-l-4 border-l-red-400' : ''}`}>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-navy font-semibold text-sm">{p.client_name}</p>
+              {p.project_type && (
+                <span className="text-[10px] font-semibold rounded-full px-2 py-0.5" style={{ background: p.project_type.color + '18', color: p.project_type.color, border: `1px solid ${p.project_type.color}35` }}>
+                  {p.project_type.name}
+                </span>
+              )}
+              {p.isRejected && (
+                <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 bg-red-50 text-red-600 border border-red-200">Rejeté — à reprendre</span>
+              )}
+            </div>
+            {p.description && <p className="text-navy/50 text-xs mt-1 line-clamp-1">{p.description}</p>}
+            <div className="flex items-center gap-3 mt-1 text-navy/45 text-xs">
+              <span>{STAGE_LABELS[p.stage]}</span>
+              {p.deadline && (
+                <span className="flex items-center gap-1"><Calendar size={11} /> {formatDate(p.deadline)}</span>
+              )}
+            </div>
+          </div>
+          <div className="w-16 shrink-0">
+            <div className="h-1.5 rounded-full bg-navy/10 overflow-hidden">
+              <div className="h-full bg-brand rounded-full" style={{ width: `${p.percentComplete}%` }} />
+            </div>
+            <p className="text-navy/35 text-[10px] text-right mt-1">{p.percentComplete}%</p>
+          </div>
+        </div>
+      </Link>
+    </motion.div>
   )
 }
