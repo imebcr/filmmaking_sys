@@ -6,7 +6,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
-import { signIn, useSession, getSession } from 'next-auth/react'
+import { signIn as memberSignIn, useSession, getSession } from 'next-auth/react'
+import { useAuth } from '@/context/AuthContext'
 
 // Commercials get scoped admin-console access (Dashboard/Pipeline/Availability) instead
 // of the member portal — everyone else lands on /me.
@@ -15,6 +16,7 @@ function destinationFor(roles: string[] | undefined): string {
 }
 
 export default function MemberLoginPage() {
+  const { user, signIn: adminSignIn } = useAuth()
   const { data: session, status } = useSession()
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -23,25 +25,37 @@ export default function MemberLoginPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    if (user) { router.replace('/dashboard'); return }
     if (status === 'authenticated' && session) router.replace(destinationFor(session.user?.roles))
-  }, [status, session, router])
+  }, [user, status, session, router])
 
+  // This page used to only try the member/commercial (NextAuth) login — admin accounts
+  // always had to know to use /login instead. Now either page works for anyone, same as
+  // /login: try admin (Supabase Auth) first, then fall back to member/commercial.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const result = await signIn('credentials', {
+
+    const adminErr = await adminSignIn(email.trim(), password)
+    if (!adminErr) {
+      router.replace('/dashboard')
+      return
+    }
+
+    const result = await memberSignIn('credentials', {
       email: email.trim().toLowerCase(),
       password,
       redirect: false,
     })
-    if (result?.error) {
-      setError('E-mail ou mot de passe incorrect.')
-      setLoading(false)
-    } else {
+    if (!result?.error) {
       const freshSession = await getSession()
       router.replace(destinationFor(freshSession?.user?.roles))
+      return
     }
+
+    setError('E-mail ou mot de passe incorrect.')
+    setLoading(false)
   }
 
   return (
