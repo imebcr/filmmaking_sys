@@ -81,25 +81,46 @@ function purgeExpiredSessions() {
   return expired.map((r) => r.project_id)
 }
 
-// Recent messages mentioning this editor, across all projects — for the notification bell.
-function getMentions(editorId, limit = 30) {
-  const rows = db.prepare(
-    "SELECT * FROM messages WHERE mentions LIKE ? ORDER BY created_at DESC LIMIT ?",
-  ).all(`%"${editorId}"%`, limit)
+// Notification-bell feed. Regular members only see messages that explicitly @mention them.
+// Admin sees every message in every project; a commercial sees every message in the
+// projects they're actually responsible for (scopeProjectIds, resolved by the caller from
+// Supabase — this module stays Supabase-free by design). scopeProjectIds === null means
+// "no restriction" (admin); an array (possibly empty) scopes to exactly those projects.
+function getMentions(editorId, { privileged = false, scopeProjectIds = undefined } = {}, limit = 30) {
+  let rows
+  if (privileged && scopeProjectIds === null) {
+    rows = db.prepare('SELECT * FROM messages ORDER BY created_at DESC LIMIT ?').all(limit)
+  } else if (privileged && Array.isArray(scopeProjectIds)) {
+    if (scopeProjectIds.length === 0) {
+      rows = []
+    } else {
+      const placeholders = scopeProjectIds.map(() => '?').join(',')
+      rows = db.prepare(`SELECT * FROM messages WHERE project_id IN (${placeholders}) ORDER BY created_at DESC LIMIT ?`).all(...scopeProjectIds, limit)
+    }
+  } else {
+    rows = db.prepare(
+      "SELECT * FROM messages WHERE mentions LIKE ? ORDER BY created_at DESC LIMIT ?",
+    ).all(`%"${editorId}"%`, limit)
+  }
+
   const lastRead = db.prepare('SELECT last_read_at FROM mention_reads WHERE editor_id = ?').get(editorId)
   const lastReadAt = lastRead?.last_read_at ?? '1970-01-01T00:00:00.000Z'
 
-  return rows
-    .map((row) => ({
-      id: row.id,
-      projectId: row.project_id,
-      senderName: row.sender_name,
-      body: row.body,
-      mentions: JSON.parse(row.mentions),
-      createdAt: row.created_at,
-    }))
-    .filter((m) => m.mentions.includes(editorId))
-    .map((m) => ({ ...m, read: m.createdAt <= lastReadAt }))
+  const mapped = rows.map((row) => ({
+    id: row.id,
+    projectId: row.project_id,
+    senderId: row.sender_id,
+    senderName: row.sender_name,
+    body: row.body,
+    mentions: JSON.parse(row.mentions),
+    createdAt: row.created_at,
+  }))
+
+  const filtered = privileged
+    ? mapped.filter((m) => m.senderId !== editorId) // don't notify yourself of your own messages
+    : mapped.filter((m) => m.mentions.includes(editorId))
+
+  return filtered.map((m) => ({ ...m, read: m.createdAt <= lastReadAt }))
 }
 
 function markMentionsRead(editorId) {

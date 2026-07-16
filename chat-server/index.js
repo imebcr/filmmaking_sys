@@ -3,7 +3,7 @@ require('./env').loadEnv()
 const http = require('http')
 const crypto = require('crypto')
 const { WebSocketServer } = require('ws')
-const { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectInfo, getTelegramTargets, supabase } = require('./auth')
+const { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectInfo, getTelegramTargets, getCommercialProjectIds, supabase } = require('./auth')
 const { parseMentions } = require('./mentions')
 const { sendTelegramMessage } = require('./telegram')
 const store = require('./store')
@@ -22,7 +22,12 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/ws/chat/mentions' && req.method === 'GET') {
     const identity = await resolveIdentity(req)
     if (!identity?.editorId) return sendJson(res, 401, { error: 'Non authentifié.' })
-    return sendJson(res, 200, { mentions: store.getMentions(identity.editorId) })
+    // Admin sees every project's chat activity; a commercial only sees their own projects;
+    // a regular member stays scoped to explicit @mentions (handled inside getMentions).
+    const scopeProjectIds = identity.privileged
+      ? (identity.isAdmin ? null : await getCommercialProjectIds(identity.editorId))
+      : undefined
+    return sendJson(res, 200, { mentions: store.getMentions(identity.editorId, { privileged: identity.privileged, scopeProjectIds }) })
   }
 
   if (url.pathname === '/ws/chat/mentions/read' && req.method === 'POST') {

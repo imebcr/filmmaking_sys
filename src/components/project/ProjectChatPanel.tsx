@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { Send, MessageCircle } from 'lucide-react'
 import { useProjectChat } from '@/lib/use-project-chat'
@@ -31,12 +32,22 @@ export default function ProjectChatPanel({ projectId, participants }: { projectI
   const { messages, connected, error, sendMessage } = useProjectChat(projectId)
   const [draft, setDraft] = useState('')
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionRect, setMentionRect] = useState<{ bottom: number; left: number; width: number } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const inputRowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
   }, [messages])
+
+  // Portaled to <body> — this popup lives inside ProjectDetailModal's scrollable body,
+  // whose overflow-y-auto clips any `position: absolute` descendant that extends past it.
+  useLayoutEffect(() => {
+    if (mentionQuery === null) return
+    const r = inputRowRef.current?.getBoundingClientRect()
+    if (r) setMentionRect({ bottom: window.innerHeight - r.top + 4, left: r.left, width: Math.min(224, r.width) })
+  }, [mentionQuery])
 
   const handleDraftChange = (value: string) => {
     setDraft(value)
@@ -104,10 +115,15 @@ export default function ProjectChatPanel({ projectId, participants }: { projectI
           )}
         </div>
 
-        <div className="relative border-t border-white/50 p-2 flex items-center gap-2">
-          {mentionCandidates.length > 0 && (
-            <div className="absolute bottom-full left-2 mb-1 w-56 max-h-40 overflow-y-auto rounded-xl border border-white/65 z-10"
-              style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(10,96,173,0.15)' }}
+        <div ref={inputRowRef} className="relative border-t border-white/50 p-2 flex items-center gap-2">
+          {mentionCandidates.length > 0 && mentionRect && typeof document !== 'undefined' && createPortal(
+            <div
+              className="fixed z-[9999] max-h-40 overflow-y-auto rounded-xl border border-white/65"
+              style={{
+                bottom: mentionRect.bottom, left: mentionRect.left, width: mentionRect.width,
+                background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: '0 8px 32px rgba(10,96,173,0.15)',
+              }}
             >
               {mentionCandidates.map((p) => (
                 <button
@@ -119,7 +135,8 @@ export default function ProjectChatPanel({ projectId, participants }: { projectI
                   @{p.name}
                 </button>
               ))}
-            </div>
+            </div>,
+            document.body,
           )}
           <input
             ref={inputRef}

@@ -80,7 +80,9 @@ export default function NotificationBell({ isMemberPortal = false }: { isMemberP
     })),
     ...mentions.map((m) => ({
       key: `m-${m.id}`,
-      text: `${m.senderName} vous a mentionné : ${m.body}`,
+      // Members only ever see actual @mentions here; admin/commercial see every message
+      // in their projects too, so "mentioned you" wouldn't always be accurate for them.
+      text: `${m.senderName} : ${m.body}`,
       href: linkFor(m.projectId, isMemberPortal, true),
       createdAt: m.createdAt,
       read: m.read,

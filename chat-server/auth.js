@@ -18,7 +18,11 @@ function parseCookies(cookieHeader) {
   return out
 }
 
-// Returns { editorId, name, privileged } or null if unauthenticated.
+// Returns { editorId, name, privileged, isAdmin } or null if unauthenticated.
+// privileged = admin OR a team member with the commercial role (both bypass the
+// per-project access check). isAdmin further distinguishes the two — a true admin
+// sees every project's chat activity in their bell, while a commercial only sees
+// the projects they're actually responsible for.
 async function resolveIdentity(request) {
   const cookies = parseCookies(request.headers.cookie)
   const sessionCookie = cookies['next-auth.session-token'] || cookies['__Secure-next-auth.session-token']
@@ -28,7 +32,7 @@ async function resolveIdentity(request) {
       const token = await decode({ token: sessionCookie, secret: process.env.NEXTAUTH_SECRET })
       if (token?.id) {
         const roles = Array.isArray(token.roles) ? token.roles : []
-        return { editorId: token.id, name: token.name || 'Membre', privileged: roles.includes('commercial') }
+        return { editorId: token.id, name: token.name || 'Membre', privileged: roles.includes('commercial'), isAdmin: false }
       }
     } catch (err) {
       console.warn('[chat-server] failed to decode NextAuth session cookie:', err.message)
@@ -45,7 +49,7 @@ async function resolveIdentity(request) {
         // /api/admin/ensure-commercial-identity) — reuse its id here too, so mentions
         // and notifications work for admin the same way they do for anyone else.
         const { data: editor } = await supabase.from('editors').select('id, full_name').eq('email', data.user.email).maybeSingle()
-        return { editorId: editor?.id ?? null, name: editor?.full_name ?? 'Admin', privileged: true }
+        return { editorId: editor?.id ?? null, name: editor?.full_name ?? 'Admin', privileged: true, isAdmin: true }
       }
     } catch (err) {
       console.warn('[chat-server] failed to validate Supabase token:', err.message)
@@ -53,6 +57,13 @@ async function resolveIdentity(request) {
   }
 
   return null
+}
+
+// Project ids a commercial is actually responsible for — scopes their "every message"
+// bell feed so they don't see chat activity from projects they have nothing to do with.
+async function getCommercialProjectIds(editorId) {
+  const { data } = await supabase.from('projects').select('id').eq('commercial_id', editorId)
+  return (data ?? []).map((p) => p.id)
 }
 
 async function memberHasProjectAccess(editorId, projectId) {
@@ -117,4 +128,4 @@ async function getTelegramTargets(editorIds) {
     .map((e) => ({ id: e.id, chatId: e.telegram_chat_id }))
 }
 
-module.exports = { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectInfo, getTelegramTargets, supabase }
+module.exports = { resolveIdentity, memberHasProjectAccess, getProjectParticipants, getProjectInfo, getTelegramTargets, getCommercialProjectIds, supabase }
