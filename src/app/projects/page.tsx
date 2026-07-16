@@ -5,6 +5,7 @@ import { Search, Download } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import ProjectDetailModal from '@/components/project/ProjectDetailModal'
 import Select from '@/components/ui/Select'
+import Badge from '@/components/ui/Badge'
 import { useApp } from '@/context/AppContext'
 import { STAGE_LABELS, STAGE_COLORS, type Project } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
@@ -124,7 +125,9 @@ export default function ProjectsListPage() {
                       className="border-b border-white/30 hover:bg-white/40 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3 text-navy font-medium">{p.client_name}</td>
-                      <td className="px-4 py-3 text-navy/60">{p.project_type?.name ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        {p.project_type ? <Badge projectType={p.project_type} small /> : <span className="text-navy/60">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`text-[10px] font-semibold rounded-full px-2.5 py-1 border ${STAGE_COLORS[p.stage]}`}>
                           {STAGE_LABELS[p.stage]}

@@ -46,19 +46,25 @@ export interface ProfileIdentity {
  * (their auto-provisioned row, see /api/admin/ensure-commercial-identity, matched by email).
  */
 export async function resolveProfileIdentity(request: Request): Promise<ProfileIdentity | null> {
+  // Bearer token (admin) checked first — same reasoning as resolveUploaderIdentity: a
+  // browser that's ever logged into a team-member account keeps that NextAuth cookie
+  // around, and this admin-console page always sends a Bearer token via adminFetch when
+  // one exists, so it should win over a stale cookie rather than the request silently
+  // resolving to the wrong (or a since-removed) identity.
+  const authHeader = request.headers.get('authorization') ?? ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (token) {
+    const supabaseAuth = createClient(supabaseUrl, anonKey)
+    const { data, error } = await supabaseAuth.auth.getUser(token)
+    if (!error && data.user?.email) {
+      const supabase = createServerSupabaseClient()
+      const { data: editor } = await supabase.from('editors').select('id').eq('email', data.user.email).eq('is_active', true).maybeSingle()
+      if (editor) return { editorId: editor.id, isPureAdmin: true }
+    }
+  }
+
   const session = await getServerSession(authOptions)
   if (session?.user?.id) return { editorId: session.user.id, isPureAdmin: false }
 
-  const authHeader = request.headers.get('authorization') ?? ''
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return null
-
-  const supabaseAuth = createClient(supabaseUrl, anonKey)
-  const { data, error } = await supabaseAuth.auth.getUser(token)
-  if (error || !data.user?.email) return null
-
-  const supabase = createServerSupabaseClient()
-  const { data: editor } = await supabase.from('editors').select('id').eq('email', data.user.email).eq('is_active', true).maybeSingle()
-  if (!editor) return null
-  return { editorId: editor.id, isPureAdmin: true }
+  return null
 }

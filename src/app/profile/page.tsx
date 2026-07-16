@@ -29,6 +29,7 @@ export default function AdminProfilePage() {
   const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [isPureAdmin, setIsPureAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -45,9 +46,14 @@ export default function AdminProfilePage() {
   const [telegramCode, setTelegramCode] = useState<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
 
-  const load = () => {
-    adminFetch('/api/member/profile').then((r) => r.json()).then((d) => {
-      if (!d.member) return
+  const load = async () => {
+    setLoadError(false)
+    // Ensures the admin's own `editors` row exists before fetching it — otherwise this can
+    // race AppLayout's own identical call on first-ever visit and 401 before the row is created.
+    await adminFetch('/api/admin/ensure-commercial-identity', { method: 'POST' }).catch(() => {})
+    try {
+      const d = await adminFetch('/api/member/profile').then((r) => r.json())
+      if (!d.member) { setLoadError(true); return }
       const m: AdminProfile = d.member
       setProfile(m)
       setIsPureAdmin(Boolean(d.isPureAdmin))
@@ -56,7 +62,11 @@ export default function AdminProfilePage() {
       setPhone(m.phone ?? '')
       setEmailNotif(m.notification_preferences?.email !== false)
       setTelegramNotif(m.notification_preferences?.telegram !== false)
-    }).finally(() => setLoading(false))
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -114,8 +124,18 @@ export default function AdminProfilePage() {
           <p className="text-navy/45 text-xs mt-0.5">Vos informations et préférences</p>
         </div>
 
-        {loading || !profile ? (
+        {loading ? (
           <div className="flex items-center justify-center py-24 text-navy/35 text-sm">Chargement…</div>
+        ) : loadError || !profile ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-24 text-navy/45 text-sm">
+            <p>Impossible de charger le profil.</p>
+            <button
+              onClick={() => { setLoading(true); load() }}
+              className="px-4 py-2 rounded-xl border border-silver text-navy/60 hover:text-navy hover:bg-white/50 text-sm font-semibold transition-colors"
+            >
+              Réessayer
+            </button>
+          </div>
         ) : (
           <div className="p-6 pb-24 lg:pb-6 max-w-xl space-y-6">
             {/* Avatar */}

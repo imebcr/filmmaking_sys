@@ -220,7 +220,7 @@ export const STAGE_LABELS: Record<ProjectStage, string> = {
 export const STAGE_COLORS: Record<ProjectStage, string> = {
   incoming: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
   'pre-production': 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-  shooting: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+  shooting: 'text-orange-400 bg-orange-500/10 border-orange-500/20',
   editing: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
   delivered: 'text-green-400 bg-green-500/10 border-green-500/20',
 }

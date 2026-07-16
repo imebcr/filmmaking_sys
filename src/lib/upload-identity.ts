@@ -18,15 +18,19 @@ export interface UploaderIdentity {
  * to any project, at any stage.
  */
 export async function resolveUploaderIdentity(request: Request): Promise<UploaderIdentity | null> {
+  // Bearer token (admin, sent by adminFetch) takes priority over a NextAuth session cookie —
+  // a browser that's ever logged into a team-member account keeps that session cookie around
+  // regardless of which tab/account is active now, and this request is only ever sent with a
+  // Bearer token by admin-console code, so it should never be shadowed by a stale cookie.
+  if (await requireAdmin(request)) {
+    return { editorId: null, privileged: true }
+  }
   const session = await getServerSession(authOptions)
   if (session?.user?.id) {
     const supabase = createServerSupabaseClient()
     const { data: member } = await supabase.from('editors').select('roles').eq('id', session.user.id).single()
     const privileged = (member?.roles ?? []).includes('commercial')
     return { editorId: session.user.id, privileged }
-  }
-  if (await requireAdmin(request)) {
-    return { editorId: null, privileged: true }
   }
   return null
 }
