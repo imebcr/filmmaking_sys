@@ -61,7 +61,6 @@ function EditorForm({ initial, onSave, onCancel }: {
 
   const isValid = form.full_name.trim() !== ''
     && form.email.trim() !== ''
-    && form.phone.trim() !== ''
 
   const handleSave = async () => {
     if (!isValid) return
@@ -112,7 +111,7 @@ function EditorForm({ initial, onSave, onCancel }: {
           <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="membre@exemple.com" />
         </div>
         <div>
-          <Label>Téléphone *</Label>
+          <Label>Téléphone</Label>
           <input type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="+213…" />
         </div>
         <div>
