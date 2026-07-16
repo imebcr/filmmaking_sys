@@ -18,9 +18,17 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
     })
     const json = await res.json().catch(() => null)
+    if (!json?.ok) {
+      // Telegram rejected it (bad chat_id, bot blocked by the user, etc.) — this used to
+      // fail silently with nothing in the logs, making it impossible to tell "not sent"
+      // from "sent fine" after the fact.
+      console.error(`[Telegram] API rejected message to ${chatId}:`, json?.description ?? json ?? `HTTP ${res.status}`)
+    } else {
+      console.log(`[Telegram] sent -> ${chatId}`)
+    }
     return { ok: Boolean(json?.ok) }
   } catch (err) {
-    console.error('[Telegram] send failed', err)
+    console.error(`[Telegram] send to ${chatId} failed`, err)
     return { ok: false }
   }
 }
