@@ -79,10 +79,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true, projectStage: willAdvance ? nextStage : project.stage, stageComplete, needsAssignment, nextStage, clientShareToken })
   }
 
-  // reject
+  // reject — the project stays exactly where it is (e.g. still Pre-production); it never
+  // advanced past this deliverable in the first place, so there's nowhere to "roll back" to.
+  // The card just turns red and the member re-submits for the same stage.
   if (!rejectionReason) return NextResponse.json({ error: 'Motif de rejet requis.' }, { status: 400 })
-
-  const previousStage: ProjectStage = stageIndex > 0 ? STAGES[stageIndex - 1] : deliverable.stage
 
   await supabase
     .from('deliverables')
@@ -97,12 +97,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   await supabase
     .from('projects')
-    .update({ stage: previousStage, revision_count: (project.revision_count ?? 0) + 1 })
+    .update({ revision_count: (project.revision_count ?? 0) + 1 })
     .eq('id', project.id)
 
   if (deliverable.submitted_by) {
     await notifyDeliverableRejected(deliverable.submitted_by, project.client_name, rejectionReason, rejectionComment, project.id)
   }
 
-  return NextResponse.json({ ok: true, projectStage: previousStage })
+  return NextResponse.json({ ok: true, projectStage: project.stage })
 }
