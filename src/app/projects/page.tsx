@@ -7,7 +7,7 @@ import ProjectDetailModal from '@/components/project/ProjectDetailModal'
 import Select from '@/components/ui/Select'
 import Badge from '@/components/ui/Badge'
 import { useApp } from '@/context/AppContext'
-import { STAGE_LABELS, STAGE_COLORS, type Project } from '@/lib/types'
+import { STAGE_LABELS, STAGE_COLORS, type Project, type ProjectStage } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 
 function csvEscape(value: string): string {
@@ -86,11 +86,24 @@ export default function ProjectsListPage() {
           </div>
           <Select value={filterTypeId} onChange={setFilterTypeId} className="text-xs" style={{ width: 180 }}>
             <option value="">Tous les types</option>
-            {projectTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            {projectTypes.map((t) => (
+              <option key={t.id} value={t.id}>
+                <span
+                  className="inline-flex items-center rounded-full font-semibold text-[10px] px-2 py-0.5"
+                  style={{ backgroundColor: t.color + '18', border: `1px solid ${t.color}35`, color: t.color }}
+                >
+                  {t.name}
+                </span>
+              </option>
+            ))}
           </Select>
           <Select value={filterStage} onChange={setFilterStage} className="text-xs" style={{ width: 180 }}>
             <option value="">Toutes les étapes</option>
-            {Object.entries(STAGE_LABELS).map(([s, label]) => <option key={s} value={s}>{label}</option>)}
+            {(Object.entries(STAGE_LABELS) as [ProjectStage, string][]).map(([s, label]) => (
+              <option key={s} value={s}>
+                <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 border ${STAGE_COLORS[s]}`}>{label}</span>
+              </option>
+            ))}
           </Select>
         </div>
 
