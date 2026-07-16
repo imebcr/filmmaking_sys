@@ -43,7 +43,21 @@ async function chatFetch(path: string, init?: RequestInit) {
   return fetch(url, init)
 }
 
-export function useNotifications() {
+// Per CDC: team members only care about being assigned and their own deliverable outcomes;
+// admin/commercial only care about incoming submissions (+ commercial's own assignments).
+// Mentions (chat messages) are shown to everyone — filtering only applies to the audit-log
+// `notifications` table events.
+const MEMBER_EVENT_TYPES = new Set(['project_assigned', 'deliverable_validated', 'deliverable_rejected'])
+const ADMIN_EVENT_TYPES = new Set(['deliverable_submitted'])
+
+interface UseNotificationsOptions {
+  /** True on /me (team-member portal), false in the admin console (admin or commercial). */
+  isMemberPortal: boolean
+  /** Only meaningful when isMemberPortal is false — commercials also see project_assigned. */
+  isCommercial?: boolean
+}
+
+export function useNotifications({ isMemberPortal, isCommercial = false }: UseNotificationsOptions) {
   const [state, setState] = useState<State>({ notifications: [], mentions: [], unreadCount: 0, loading: true })
 
   const load = useCallback(async () => {
@@ -51,11 +65,15 @@ export function useNotifications() {
       adminFetch('/api/notifications').then((r) => r.json()).catch(() => ({ notifications: [], unreadCount: 0 })),
       chatFetch('/ws/chat/mentions').then((r) => r.json()).catch(() => ({ mentions: [] })),
     ])
-    const notifications: Notification[] = notifRes.notifications ?? []
+    const notifications: Notification[] = (notifRes.notifications ?? []).filter((n: Notification) => {
+      if (isMemberPortal) return MEMBER_EVENT_TYPES.has(n.event_type)
+      if (n.event_type === 'project_assigned') return isCommercial
+      return ADMIN_EVENT_TYPES.has(n.event_type)
+    })
     const mentions: MentionItem[] = mentionRes.mentions ?? []
-    const unreadCount = (notifRes.unreadCount ?? 0) + mentions.filter((m) => !m.read).length
+    const unreadCount = notifications.filter((n) => !n.read_at).length + mentions.filter((m) => !m.read).length
     setState({ notifications, mentions, unreadCount, loading: false })
-  }, [])
+  }, [isMemberPortal, isCommercial])
 
   useEffect(() => {
     load()

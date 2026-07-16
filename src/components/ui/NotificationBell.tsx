@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Bell } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNotifications, notificationText } from '@/lib/use-notifications'
+import { useAdminIdentity } from '@/lib/use-admin-identity'
 
 const PANEL_WIDTH = 320
 
@@ -29,7 +30,8 @@ function linkFor(projectId: string | undefined, isMemberPortal: boolean, chat = 
 }
 
 export default function NotificationBell({ isMemberPortal = false }: { isMemberPortal?: boolean }) {
-  const { notifications, mentions, unreadCount, markAllRead } = useNotifications()
+  const { isCommercial } = useAdminIdentity()
+  const { notifications, mentions, unreadCount, markAllRead } = useNotifications({ isMemberPortal, isCommercial })
   const [open, setOpen] = useState(false)
   const [rect, setRect] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
