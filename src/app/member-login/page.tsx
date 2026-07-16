@@ -31,7 +31,7 @@ export default function MemberLoginPage() {
     setError(null)
     setLoading(true)
     const result = await signIn('credentials', {
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       password,
       redirect: false,
     })
@@ -77,6 +77,9 @@ export default function MemberLoginPage() {
                 placeholder="vous@exemple.com"
                 required
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
 
@@ -89,6 +92,9 @@ export default function MemberLoginPage() {
                 placeholder="••••••••"
                 required
                 autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
 
