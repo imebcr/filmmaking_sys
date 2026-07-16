@@ -28,6 +28,7 @@ const Label = ({ children }: { children: React.ReactNode }) => (
 export default function MemberProfilePage() {
   const [profile, setProfile] = useState<MemberProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -42,11 +43,13 @@ export default function MemberProfilePage() {
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null)
 
   const [telegramCode, setTelegramCode] = useState<string | null>(null)
+  const [telegramCodeError, setTelegramCodeError] = useState<string | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
 
   const load = () => {
+    setLoadError(false)
     fetch('/api/member/profile').then((r) => r.json()).then((d) => {
-      if (!d.member) return
+      if (!d.member) { setLoadError(true); return }
       const m: MemberProfile = d.member
       setProfile(m)
       setFullName(m.full_name)
@@ -54,7 +57,7 @@ export default function MemberProfilePage() {
       setPhone(m.phone ?? '')
       setEmailNotif(m.notification_preferences?.email !== false)
       setTelegramNotif(m.notification_preferences?.telegram !== false)
-    }).finally(() => setLoading(false))
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])
@@ -89,9 +92,16 @@ export default function MemberProfilePage() {
   }
 
   const handleGenerateTelegramCode = async () => {
+    setTelegramCodeError(null)
     const res = await fetch('/api/member/telegram/generate-code', { method: 'POST' })
     const result = await res.json().catch(() => ({}))
-    if (res.ok) setTelegramCode(result.code)
+    if (res.ok) {
+      setTelegramCode(result.code)
+    } else if (res.status === 401) {
+      setTelegramCodeError('Votre session a expiré (souvent après une modification de compte) — déconnectez-vous et reconnectez-vous, puis réessayez.')
+    } else {
+      setTelegramCodeError(result?.error ?? 'Échec de la génération du code.')
+    }
   }
 
   const handleAvatarChange = async (file: File | null) => {
@@ -104,7 +114,21 @@ export default function MemberProfilePage() {
     if (res.ok) load()
   }
 
-  if (loading || !profile) return <div className="flex items-center justify-center py-24 text-navy/35 text-sm">Chargement…</div>
+  if (loading) return <div className="flex items-center justify-center py-24 text-navy/35 text-sm">Chargement…</div>
+
+  if (loadError || !profile) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-navy/45 text-sm">
+        <p>Impossible de charger le profil.</p>
+        <button
+          onClick={() => { setLoading(true); load() }}
+          className="px-4 py-2 rounded-xl border border-silver text-navy/60 hover:text-navy hover:bg-white/50 text-sm font-semibold transition-colors"
+        >
+          Réessayer
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen">
@@ -202,6 +226,9 @@ export default function MemberProfilePage() {
                   <button onClick={handleGenerateTelegramCode} className="flex items-center gap-1.5 text-brand text-sm font-semibold hover:text-ocean">
                     <Send size={13} /> Générer un code
                   </button>
+                )}
+                {telegramCodeError && (
+                  <p className="flex items-start gap-1.5 text-red-500 text-xs"><AlertCircle size={12} className="mt-0.5 shrink-0" /> {telegramCodeError}</p>
                 )}
               </>
             )}

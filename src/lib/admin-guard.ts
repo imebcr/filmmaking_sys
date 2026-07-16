@@ -64,7 +64,18 @@ export async function resolveProfileIdentity(request: Request): Promise<ProfileI
   }
 
   const session = await getServerSession(authOptions)
-  if (session?.user?.id) return { editorId: session.user.id, isPureAdmin: false }
+  if (session?.user?.id) {
+    // The NextAuth JWT embeds the editor id at login time and is never re-checked against
+    // the DB — if that account was deleted and recreated since (a fresh row, new id), a
+    // browser that never logged back in still carries the old id. Writes against it then
+    // silently affect zero rows instead of erroring, e.g. a Telegram link code gets "saved"
+    // nowhere and can never be found again. Verify the row still exists so callers get a
+    // clean 401 (and know to log back in) instead of a silent no-op.
+    const supabase = createServerSupabaseClient()
+    const { data: editor } = await supabase.from('editors').select('id').eq('id', session.user.id).maybeSingle()
+    if (editor) return { editorId: session.user.id, isPureAdmin: false }
+    return null
+  }
 
   return null
 }
