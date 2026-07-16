@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { Kanban, Calendar, Settings, LayoutDashboard, LogOut, Table2 } from 'lucide-react'
+import { Kanban, Calendar, Settings, LayoutDashboard, LogOut, Table2, User } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAdminIdentity } from '@/lib/use-admin-identity'
@@ -16,6 +16,7 @@ const links = [
   { href: '/pipeline', label: 'Pipeline', icon: Kanban },
   { href: '/projects', label: 'Projets', icon: Table2 },
   { href: '/availability', label: 'Availability', icon: Calendar },
+  { href: '/profile', label: 'Profil', icon: User },
   { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ]
 

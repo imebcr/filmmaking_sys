@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { createServerSupabaseClient } from '@/lib/server-supabase'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://placeholder.supabase.co'
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? 'placeholder-key'
@@ -30,4 +31,34 @@ export async function requireAdminOrCommercial(request: Request): Promise<boolea
   if (await requireAdmin(request)) return true
   const session = await getServerSession(authOptions)
   return Boolean(session?.user?.roles?.includes('commercial'))
+}
+
+export interface ProfileIdentity {
+  editorId: string
+  /** Supabase-Auth admin, not a NextAuth-authenticated team member — no editors.password_hash
+   * to change here (their password lives in Supabase Auth), so profile UIs should hide that. */
+  isPureAdmin: boolean
+}
+
+/**
+ * Resolves the `editors` row backing whoever's viewing the admin-console profile page —
+ * either a NextAuth-authenticated commercial (their own row) or a Supabase-Auth admin
+ * (their auto-provisioned row, see /api/admin/ensure-commercial-identity, matched by email).
+ */
+export async function resolveProfileIdentity(request: Request): Promise<ProfileIdentity | null> {
+  const session = await getServerSession(authOptions)
+  if (session?.user?.id) return { editorId: session.user.id, isPureAdmin: false }
+
+  const authHeader = request.headers.get('authorization') ?? ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (!token) return null
+
+  const supabaseAuth = createClient(supabaseUrl, anonKey)
+  const { data, error } = await supabaseAuth.auth.getUser(token)
+  if (error || !data.user?.email) return null
+
+  const supabase = createServerSupabaseClient()
+  const { data: editor } = await supabase.from('editors').select('id').eq('email', data.user.email).eq('is_active', true).maybeSingle()
+  if (!editor) return null
+  return { editorId: editor.id, isPureAdmin: true }
 }

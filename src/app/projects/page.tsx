@@ -6,8 +6,8 @@ import AppLayout from '@/components/layout/AppLayout'
 import ProjectDetailModal from '@/components/project/ProjectDetailModal'
 import Select from '@/components/ui/Select'
 import { useApp } from '@/context/AppContext'
-import { STAGE_LABELS, type Project } from '@/lib/types'
-import { formatDZD, formatDate } from '@/lib/utils'
+import { STAGE_LABELS, STAGE_COLORS, type Project } from '@/lib/types'
+import { formatDate } from '@/lib/utils'
 
 function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`
@@ -112,7 +112,6 @@ export default function ProjectsListPage() {
                     <th className="text-left px-4 py-3 font-semibold">Étape</th>
                     <th className="text-left px-4 py-3 font-semibold">Commercial</th>
                     <th className="text-left px-4 py-3 font-semibold">Deadline</th>
-                    <th className="text-right px-4 py-3 font-semibold">Prix</th>
                     <th className="text-center px-4 py-3 font-semibold">Révisions</th>
                     <th className="text-left px-4 py-3 font-semibold">Créé le</th>
                   </tr>
@@ -126,17 +125,20 @@ export default function ProjectsListPage() {
                     >
                       <td className="px-4 py-3 text-navy font-medium">{p.client_name}</td>
                       <td className="px-4 py-3 text-navy/60">{p.project_type?.name ?? '—'}</td>
-                      <td className="px-4 py-3 text-navy/60">{STAGE_LABELS[p.stage]}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-semibold rounded-full px-2.5 py-1 border ${STAGE_COLORS[p.stage]}`}>
+                          {STAGE_LABELS[p.stage]}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-navy/60">{commercialName(p.commercial_id)}</td>
                       <td className="px-4 py-3 text-navy/60">{p.deadline ? formatDate(p.deadline) : '—'}</td>
-                      <td className="px-4 py-3 text-right text-navy font-medium">{formatDZD(p.deal_price ?? 0)}</td>
                       <td className="px-4 py-3 text-center text-navy/60">{p.revision_count}/{p.revisions_allowed}</td>
                       <td className="px-4 py-3 text-navy/45">{formatDate(p.created_at)}</td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-navy/35">Aucun projet trouvé.</td>
+                      <td colSpan={7} className="px-4 py-12 text-center text-navy/35">Aucun projet trouvé.</td>
                     </tr>
                   )}
                 </tbody>

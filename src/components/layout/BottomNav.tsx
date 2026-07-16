@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Kanban, Calendar, Settings, LayoutDashboard, Table2 } from 'lucide-react'
+import { Kanban, Calendar, Settings, LayoutDashboard, Table2, User } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAdminIdentity } from '@/lib/use-admin-identity'
@@ -12,6 +12,7 @@ const links = [
   { href: '/pipeline', label: 'Pipeline', icon: Kanban },
   { href: '/projects', label: 'Projets', icon: Table2 },
   { href: '/availability', label: 'Avail.', icon: Calendar },
+  { href: '/profile', label: 'Profil', icon: User },
   { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ]
 
@@ -22,7 +23,7 @@ export default function BottomNav() {
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass-nav">
-      <div className={visibleLinks.length === 5 ? 'grid grid-cols-5' : 'grid grid-cols-4'}>
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${visibleLinks.length}, minmax(0, 1fr))` }}>
         {visibleLinks.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (

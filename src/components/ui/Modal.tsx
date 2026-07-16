@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -23,7 +24,13 @@ export default function Modal({ open, onClose, title, children, size = 'md' }: M
 
   const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }
 
-  return (
+  // Portaled to <body> — a Modal opened from inside another open Modal (e.g. a delete
+  // confirmation) would otherwise be clipped/mispositioned, since the outer Modal's
+  // animated sheet has a transform applied, which creates a new containing block for
+  // any `position: fixed` descendant.
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -70,6 +77,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }: M
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

@@ -6,12 +6,12 @@ import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core'
-import { motion } from 'framer-motion'
-import { Search } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Search, AlertCircle } from 'lucide-react'
 import type { Project, ProjectStage } from '@/lib/types'
-import { STAGES } from '@/lib/types'
+import { STAGES, STAGE_LABELS } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
-import { resolveTargetStage, hasDeliverableForCurrentStage, stageRolesAlreadyAssigned, hasPendingDeliverable, STAGE_ROLES } from '@/lib/stage-rules'
+import { resolveTargetStage, nextStageFor, prevStageFor, hasDeliverableForCurrentStage, stageRolesAlreadyAssigned, hasPendingDeliverable, STAGE_ROLES } from '@/lib/stage-rules'
 import KanbanColumn from './KanbanColumn'
 import ProjectCard from './ProjectCard'
 import AssignEditorModal from './AssignEditorModal'
@@ -36,6 +36,13 @@ export default function KanbanBoard() {
   const [showNew, setShowNew] = useState(false)
   const [search, setSearch] = useState('')
   const [filterTypeId, setFilterTypeId] = useState('')
+  const [skipWarning, setSkipWarning] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!skipWarning) return
+    const t = setTimeout(() => setSkipWarning(null), 3000)
+    return () => clearTimeout(t)
+  }, [skipWarning])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -66,6 +73,14 @@ export default function KanbanBoard() {
   const requestStageChange = (project: Project, requestedStage: ProjectStage, skipDeliverableCheck = false) => {
     const newStage = resolveTargetStage(project, requestedStage)
     if (project.stage === newStage) return
+
+    // Only one stage at a time — never skip ahead (or back) past an adjacent stage, except
+    // Motion Design projects which never go through Shooting at all (already baked into
+    // nextStageFor/prevStageFor via resolveTargetStage).
+    if (newStage !== nextStageFor(project) && newStage !== prevStageFor(project)) {
+      setSkipWarning(`Impossible de passer directement de « ${STAGE_LABELS[project.stage]} » à « ${STAGE_LABELS[newStage]} » — une étape à la fois.`)
+      return
+    }
 
     const movingForward = STAGES.indexOf(newStage) > STAGES.indexOf(project.stage)
     if (!skipDeliverableCheck && movingForward && !hasDeliverableForCurrentStage(project)) {
@@ -203,6 +218,19 @@ export default function KanbanBoard() {
       )}
 
       <NewProjectModal open={showNew} onClose={() => setShowNew(false)} />
+
+      <AnimatePresence>
+        {skipWarning && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 16, x: '-50%' }}
+            className="fixed bottom-6 left-1/2 z-[9999] flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy text-white text-xs font-medium shadow-lg max-w-sm"
+          >
+            <AlertCircle size={14} className="shrink-0 text-amber-300" /> {skipWarning}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }
