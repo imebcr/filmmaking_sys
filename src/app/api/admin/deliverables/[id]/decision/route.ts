@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/server-supabase'
 import { createRandomToken, expiresAt } from '@/lib/member-security'
 import { notifyDeliverableValidated, notifyDeliverableRejected } from '@/lib/notifications'
 import { STAGES, DELIVERABLE_STAGES, type ProjectStage } from '@/lib/types'
+import { STAGE_ROLES } from '@/lib/stage-rules'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await requireAdminOrCommercial(request))) return NextResponse.json({ error: 'Non autorisé.' }, { status: 401 })
@@ -50,30 +51,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       })
       .eq('id', id)
 
-    // A batch (multiple files submitted together) only advances the project once every
-    // file in it has a decision — validating one file doesn't move things along if its
-    // siblings are still waiting on a decision.
-    let batchComplete = true
-    if (deliverable.batch_id) {
-      const { data: pendingSiblings } = await supabase
-        .from('deliverables')
-        .select('id')
-        .eq('batch_id', deliverable.batch_id)
-        .eq('project_id', project.id)
-        .eq('stage', deliverable.stage)
-        .eq('status', 'submitted')
-      batchComplete = (pendingSiblings?.length ?? 0) === 0
-    }
+    // Every deliverable submitted for this stage must be decided — not just the ones from the
+    // same upload batch — before the project is allowed to advance. A member who submits a
+    // second batch before the first was reviewed shouldn't let the project skip past it.
+    const { data: pendingSiblings } = await supabase
+      .from('deliverables')
+      .select('id')
+      .eq('project_id', project.id)
+      .eq('stage', deliverable.stage)
+      .eq('status', 'submitted')
+    const stageComplete = (pendingSiblings?.length ?? 0) === 0
 
-    if (batchComplete) {
+    // Advancing into a stage with assignable roles needs a human to pick who takes it next —
+    // hold off on the auto-move and let the client prompt for that instead of silently leaving
+    // the incoming stage unassigned.
+    const needsAssignment = stageComplete && !isFinalStage && (nextStage === 'editing' || Boolean(STAGE_ROLES[nextStage]))
+    const willAdvance = stageComplete && !needsAssignment
+
+    if (willAdvance) {
       await supabase.from('projects').update({ stage: nextStage }).eq('id', project.id)
     }
 
     if (deliverable.submitted_by) {
-      await notifyDeliverableValidated(deliverable.submitted_by, project.client_name, isFinalStage && batchComplete, project.id)
+      await notifyDeliverableValidated(deliverable.submitted_by, project.client_name, isFinalStage && willAdvance, project.id)
     }
 
-    return NextResponse.json({ ok: true, projectStage: batchComplete ? nextStage : project.stage, batchComplete, clientShareToken })
+    return NextResponse.json({ ok: true, projectStage: willAdvance ? nextStage : project.stage, stageComplete, needsAssignment, nextStage, clientShareToken })
   }
 
   // reject

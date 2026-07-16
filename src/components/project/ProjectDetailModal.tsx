@@ -14,6 +14,8 @@ import DatePicker from '@/components/ui/DatePicker'
 import DeliverablePanel from '@/components/deliverables/DeliverablePanel'
 import ProjectFilesSection from '@/components/project/ProjectFilesSection'
 import ProjectChatPanel from '@/components/project/ProjectChatPanel'
+import AssignStageModal from '@/components/pipeline/AssignStageModal'
+import AssignEditorModal from '@/components/pipeline/AssignEditorModal'
 import { syncAssignments } from '@/lib/sync-assignments'
 
 // Team roles assigned up front, same set offered when the project is created.
@@ -65,6 +67,16 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // A deliverable just resolved as the last one pending for its stage — before the project
+  // moves on, ask who takes the next stage (mirrors the same gate the Kanban drag/quick-move
+  // flow already applies).
+  const [assignStageTarget, setAssignStageTarget] = useState<ProjectStage | null>(null)
+  const [showAssignEditor, setShowAssignEditor] = useState(false)
+  const handleStageAdvancePending = (nextStage: ProjectStage) => {
+    if (nextStage === 'editing') setShowAssignEditor(true)
+    else setAssignStageTarget(nextStage)
+  }
 
   // project.commercial_id is a FK into editors, not contacts — must be a team member with the Commercial role.
   const commercials = editors.filter((e) => (e.roles ?? []).includes('commercial'))
@@ -193,6 +205,7 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
   const deliverableFirst = hasPendingDeliverable(project) || rejectedDeliverable
 
   return (
+    <>
     <Modal open onClose={onClose} title="Project Details" size="lg">
       <div className="space-y-6">
         {/* General Info */}
@@ -254,7 +267,7 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
         </section>
 
         {/* Deliverable awaiting review (or rejected) — surfaced right after General */}
-        {deliverableFirst && <DeliverablePanel project={project} />}
+        {deliverableFirst && <DeliverablePanel project={project} onStageAdvancePending={handleStageAdvancePending} />}
 
         {/* Sibling videos from the same client order */}
         {orderSiblings.length > 0 && (
@@ -320,7 +333,7 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
         <ProjectFilesSection project={project} />
 
         {/* Deliverable validation (already surfaced above General when awaiting review/rejected) */}
-        {!deliverableFirst && <DeliverablePanel project={project} />}
+        {!deliverableFirst && <DeliverablePanel project={project} onStageAdvancePending={handleStageAdvancePending} />}
 
         {/* Team chat — closes automatically 24h after the project is marked Delivered */}
         <ProjectChatPanel projectId={project.id} participants={chatParticipants} />
@@ -416,5 +429,23 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
         </div>
       </div>
     </Modal>
+
+    {/* Rendered as a sibling, not nested inside Modal's animated (transformed) sheet — a
+        transform on an ancestor would break these inner modals' fixed positioning. */}
+    <AssignStageModal
+      open={assignStageTarget !== null}
+      project={project}
+      targetStage={assignStageTarget}
+      onClose={() => setAssignStageTarget(null)}
+      onConfirm={() => setAssignStageTarget(null)}
+    />
+
+    <AssignEditorModal
+      open={showAssignEditor}
+      project={project}
+      onClose={() => setShowAssignEditor(false)}
+      onConfirm={() => setShowAssignEditor(false)}
+    />
+    </>
   )
 }

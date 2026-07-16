@@ -2,9 +2,9 @@
 
 import { useEffect, useState, use as usePromise } from 'react'
 import { motion } from 'framer-motion'
-import { Calendar, PlayCircle, Upload, AlertCircle, CheckCircle2, Download, Phone, Mail, Building2, Paperclip } from 'lucide-react'
-import type { Deliverable, ProjectStage, ProjectFile } from '@/lib/types'
-import { STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
+import { Calendar, PlayCircle, Upload, AlertCircle, CheckCircle2, Download, Users, Paperclip } from 'lucide-react'
+import type { Deliverable, ProjectStage, ProjectFile, StakeholderRole } from '@/lib/types'
+import { STAGE_LABELS, DELIVERABLE_STAGES, STAKEHOLDER_LABELS } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 import { useResumableUpload } from '@/lib/use-resumable-upload'
 import ProjectChatPanel from '@/components/project/ProjectChatPanel'
@@ -12,9 +12,6 @@ import ProjectChatPanel from '@/components/project/ProjectChatPanel'
 interface MemberProjectDetail {
   id: string
   client_name: string
-  client_phone: string
-  client_email: string
-  client_company: string
   description: string
   stage_requirements: Record<string, string>
   stage: ProjectStage
@@ -25,6 +22,7 @@ interface MemberProjectDetail {
   myDeliverables: Deliverable[]
   allDeliverables: Deliverable[]
   participants: { id: string; name: string }[]
+  team: { role: StakeholderRole; name: string }[]
   project_files: ProjectFile[]
 }
 
@@ -109,13 +107,16 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
             </div>
           )}
 
-          {(project.client_phone || project.client_email || project.client_company) && (
+          {project.team.length > 0 && (
             <div>
-              <p className="text-navy/50 text-xs font-medium mb-1.5">Client</p>
-              <div className="flex flex-wrap gap-3 text-navy/75 text-xs">
-                {project.client_phone && <span className="flex items-center gap-1"><Phone size={11} /> {project.client_phone}</span>}
-                {project.client_email && <span className="flex items-center gap-1"><Mail size={11} /> {project.client_email}</span>}
-                {project.client_company && <span className="flex items-center gap-1"><Building2 size={11} /> {project.client_company}</span>}
+              <p className="text-navy/50 text-xs font-medium mb-1.5 flex items-center gap-1.5"><Users size={12} /> Équipe</p>
+              <div className="flex flex-wrap gap-1.5">
+                {project.team.map((t, i) => (
+                  <span key={i} className="flex items-center gap-1 text-xs glass-sm rounded-full px-2.5 py-1">
+                    <span className="text-navy/45">{STAKEHOLDER_LABELS[t.role]}</span>
+                    <span className="text-navy font-medium">{t.name}</span>
+                  </span>
+                ))}
               </div>
             </div>
           )}

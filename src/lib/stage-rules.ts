@@ -1,4 +1,4 @@
-import type { Project, ProjectStage, TeamMemberRole } from './types'
+import type { Project, ProjectStage, StakeholderRole, TeamMemberRole } from './types'
 import { STAGES, DELIVERABLE_STAGES, ROLE_TO_STAKEHOLDER } from './types'
 
 const MOTION_DESIGN_TYPE_NAME = 'Motion Design'
@@ -54,4 +54,28 @@ export function stageRolesAlreadyAssigned(project: Project, stage: ProjectStage)
 // Amber-highlighted, sorted-first state — a submitted deliverable is waiting on a decision.
 export function hasPendingDeliverable(project: Project): boolean {
   return (project.deliverables ?? []).some((d) => d.stage === project.stage && d.status === 'submitted')
+}
+
+// Which stakeholder role(s) are doing the work at a given stage — the Kanban-card counterpart
+// to STAGE_ROLES (which is about team-member roles offered in the assignment picker).
+const STAGE_STAKEHOLDER_ROLES: Partial<Record<ProjectStage, StakeholderRole[]>> = {
+  'pre-production': ['scriptwriter', 'voiceover'],
+  shooting: ['filmmaker'],
+}
+
+// Who's actually assigned to the project's *current* stage — shown on the Kanban card so it's
+// obvious at a glance who's doing the script/voice over/filming/editing right now.
+export function stageAssigneeNames(project: Project): string[] {
+  const roles = STAGE_STAKEHOLDER_ROLES[project.stage]
+  if (roles) {
+    return (project.stakeholders ?? [])
+      .filter((s) => roles.includes(s.role) && s.editor_id && s.name)
+      .map((s) => s.name)
+  }
+  if (project.stage === 'editing' || project.stage === 'delivered') {
+    const assignment = (project.editor_assignments ?? [])[0]
+    const name = assignment?.editor?.full_name || assignment?.editor_name
+    return name ? [name] : []
+  }
+  return []
 }

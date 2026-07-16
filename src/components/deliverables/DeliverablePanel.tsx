@@ -155,7 +155,14 @@ function PastStageBlock({ projectId, stage, deliverables, canUpload }: { project
   )
 }
 
-export default function DeliverablePanel({ project }: { project: Project }) {
+interface Props {
+  project: Project
+  /** A validation just resolved the last pending deliverable for the active stage — the caller
+   * should prompt to pick who takes the next stage before the project actually advances. */
+  onStageAdvancePending?: (nextStage: ProjectStage) => void
+}
+
+export default function DeliverablePanel({ project, onStageAdvancePending }: Props) {
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [reason, setReason] = useState(REJECTION_REASONS[0])
   const [comment, setComment] = useState('')
@@ -169,8 +176,9 @@ export default function DeliverablePanel({ project }: { project: Project }) {
   const otherStages = DELIVERABLE_STAGES.filter((s) => s !== activeStage && byStage(s).length > 0)
 
   const stageDeliverables = activeStage ? byStage(activeStage).sort((a, b) => b.version - a.version) : []
-  const latestBatchId = stageDeliverables[0]?.batch_id
-  const pendingBatch = stageDeliverables.filter((d) => d.batch_id === latestBatchId && d.status === 'submitted')
+  // Every deliverable still awaiting a decision for this stage — regardless of which upload
+  // batch it came from — must be reviewed together; the project can't advance until all are done.
+  const pendingBatch = stageDeliverables.filter((d) => d.status === 'submitted')
   const singleLatest = pendingBatch.length === 0 ? stageDeliverables[0] : undefined
   const shownIds = new Set(pendingBatch.length > 0 ? pendingBatch.map((d) => d.id) : singleLatest ? [singleLatest.id] : [])
   const history = stageDeliverables.filter((d) => !shownIds.has(d.id))
@@ -188,7 +196,12 @@ export default function DeliverablePanel({ project }: { project: Project }) {
       }),
     })
     const result = await res.json().catch(() => ({}))
-    return { ok: res.ok, error: result?.error as string | undefined }
+    return {
+      ok: res.ok,
+      error: result?.error as string | undefined,
+      needsAssignment: Boolean(result?.needsAssignment),
+      nextStage: result?.nextStage as ProjectStage | undefined,
+    }
   }
 
   const handleReject = async (deliverableId: string) => {
@@ -204,17 +217,19 @@ export default function DeliverablePanel({ project }: { project: Project }) {
   const handleValidateOne = async (deliverableId: string) => {
     setBusy(true)
     setError(null)
-    const { ok, error: err } = await runDecision(deliverableId, 'validate')
+    const { ok, error: err, needsAssignment, nextStage } = await runDecision(deliverableId, 'validate')
     setBusy(false)
-    if (!ok) setError(err ?? 'Échec de la décision.')
+    if (!ok) { setError(err ?? 'Échec de la décision.'); return }
+    if (needsAssignment && nextStage) onStageAdvancePending?.(nextStage)
   }
 
   const handleValidateAll = async () => {
     setBusy(true)
     setError(null)
     for (const d of pendingBatch) {
-      const { ok, error: err } = await runDecision(d.id, 'validate')
+      const { ok, error: err, needsAssignment, nextStage } = await runDecision(d.id, 'validate')
       if (!ok) { setError(err ?? 'Échec de la décision.'); setBusy(false); return }
+      if (needsAssignment && nextStage) onStageAdvancePending?.(nextStage)
     }
     setBusy(false)
   }

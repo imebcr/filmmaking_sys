@@ -13,9 +13,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!hasAccess) return NextResponse.json({ error: 'Projet non assigné.' }, { status: 403 })
 
   const supabase = createServerSupabaseClient()
+  // Client contact fields are deliberately NOT selected — team members don't get to see them.
   const { data: project, error } = await supabase
     .from('projects')
-    .select('id, client_name, client_phone, client_email, client_company, description, stage_requirements, stage, deadline, revision_count, revisions_allowed, started_at, created_at, commercial_id, project_type:project_types(name, color, stages), deliverables(*), project_files(*), stakeholders:project_stakeholders(editor_id, name), editor_assignments(editor_id, editor_name)')
+    .select('id, client_name, description, stage_requirements, stage, deadline, revision_count, revisions_allowed, started_at, created_at, commercial_id, project_type:project_types(name, color, stages), deliverables(*), project_files(*), stakeholders:project_stakeholders(role, editor_id, name), editor_assignments(editor_id, editor_name)')
     .eq('id', id)
     .single()
 
@@ -34,6 +35,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
   const participants = Array.from(participantsMap.entries()).map(([pid, name]) => ({ id: pid, name }))
 
+  // Who's taking which role on this project — shown to every team member so they can see
+  // who's doing script writing/voice over/filming/editing alongside them, at a glance.
+  const team = [
+    ...(project.stakeholders ?? [])
+      .filter((s) => s.editor_id && s.name)
+      .map((s) => ({ role: s.role, name: s.name as string })),
+    ...(project.editor_assignments ?? [])
+      .filter((a) => a.editor_id && a.editor_name)
+      .map((a) => ({ role: 'editor' as const, name: a.editor_name })),
+  ]
+
   // Used for this member's own upload-status gating (can they submit for the current stage?).
   const myDeliverables = (project.deliverables ?? [])
     .filter((d) => d.submitted_by === session.user.id)
@@ -46,5 +58,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .sort((a, b) => b.version - a.version)
 
   const { deliverables: _all, stakeholders: _stakeholders, editor_assignments: _assignments, ...rest } = project
-  return NextResponse.json({ project: { ...rest, myDeliverables, allDeliverables, participants } })
+  return NextResponse.json({ project: { ...rest, myDeliverables, allDeliverables, participants, team } })
 }

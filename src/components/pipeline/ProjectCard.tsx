@@ -7,7 +7,7 @@ import { Calendar, User, Trash2, X, Copy, ChevronLeft, ChevronRight } from 'luci
 import { motion } from 'framer-motion'
 import type { Project, ProjectStage } from '@/lib/types'
 import { STAGE_LABELS, DELIVERABLE_STAGES } from '@/lib/types'
-import { nextStageFor, prevStageFor } from '@/lib/stage-rules'
+import { nextStageFor, prevStageFor, stageAssigneeNames } from '@/lib/stage-rules'
 import Badge from '@/components/ui/Badge'
 import { formatDate } from '@/lib/utils'
 import { useApp } from '@/context/AppContext'
@@ -45,8 +45,7 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
     opacity: isDragging ? 0 : 1,
   }
 
-  const editorAssignment = (project.editor_assignments ?? [])[0]
-  const editorName = editorAssignment?.editor?.full_name || editorAssignment?.editor_name
+  const assigneeNames = stageAssigneeNames(project)
 
   const isActiveStage = DELIVERABLE_STAGES.includes(project.stage)
   const pendingDeliverable = (project.deliverables ?? []).some((d) => d.stage === project.stage && d.status === 'submitted')
@@ -90,11 +89,18 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
         onClick={(e) => { if (!confirming) { e.stopPropagation(); onClick() } }}
         className={`glass-sm rounded-2xl p-3.5 mb-2.5 select-none cursor-grab active:cursor-grabbing relative group ${
           pendingDeliverable
-            ? 'border-l-4 border-l-amber-400 bg-amber-100/70'
+            ? 'border-l-4 border-l-amber-400'
             : rejectedDeliverable
-              ? 'border-l-4 border-l-red-400 bg-red-100/60'
+              ? 'border-l-4 border-l-red-400'
               : isActiveStage ? 'border-l-4 border-l-brand' : ''
         }`}
+        style={
+          pendingDeliverable
+            ? { background: 'rgba(252, 211, 77, 0.28)' }
+            : rejectedDeliverable
+              ? { background: 'rgba(248, 113, 113, 0.22)' }
+              : undefined
+        }
       >
         {/* Confirm delete overlay */}
         {confirming && (
@@ -185,11 +191,11 @@ export default function ProjectCard({ project, onClick, isDragOverlay, onRequest
           )}
         </div>
 
-        {/* Editor */}
-        {(project.stage === 'editing' || project.stage === 'delivered') && editorName && (
+        {/* Who's working on this project at its current stage */}
+        {assigneeNames.length > 0 && (
           <div className="flex items-center gap-1 text-navy/50 text-xs mb-2">
-            <User size={11} />
-            <span className="truncate">{editorName}</span>
+            <User size={11} className="shrink-0" />
+            <span className="truncate">{assigneeNames.join(', ')}</span>
           </div>
         )}
 
