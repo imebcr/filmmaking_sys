@@ -6,9 +6,17 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { signIn as memberSignIn, getSession, useSession } from 'next-auth/react'
+
+// Commercials get scoped admin-console access instead of the member portal —
+// everyone else (editeur/filmmaker/script_writer/voice_over) lands on /me.
+function destinationForMember(roles: string[] | undefined): string {
+  return roles?.includes('commercial') ? '/dashboard' : '/me'
+}
 
 export default function LoginPage() {
   const { user, signIn, requestPasswordReset } = useAuth()
+  const { data: memberSession, status: memberStatus } = useSession()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,20 +26,37 @@ export default function LoginPage() {
   const [resetSent, setResetSent] = useState(false)
 
   useEffect(() => {
-    if (user) router.replace('/dashboard')
-  }, [user, router])
+    if (user) { router.replace('/dashboard'); return }
+    if (memberStatus === 'authenticated' && memberSession) router.replace(destinationForMember(memberSession.user?.roles))
+  }, [user, memberStatus, memberSession, router])
 
+  // One login form for everyone — admin, commercial, and team members all use different
+  // auth systems (Supabase Auth vs NextAuth) under the hood, but nobody should have to know
+  // that or remember two different URLs. Try admin first, then fall back to member/commercial.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const err = await signIn(email.trim(), password)
-    if (err) {
-      setError('Invalid email or password.')
-      setLoading(false)
-    } else {
+
+    const adminErr = await signIn(email.trim(), password)
+    if (!adminErr) {
       router.replace('/dashboard')
+      return
     }
+
+    const memberResult = await memberSignIn('credentials', {
+      email: email.trim().toLowerCase(),
+      password,
+      redirect: false,
+    })
+    if (!memberResult?.error) {
+      const freshSession = await getSession()
+      router.replace(destinationForMember(freshSession?.user?.roles))
+      return
+    }
+
+    setError('Invalid email or password.')
+    setLoading(false)
   }
 
   const handleForgotSubmit = async (e: React.FormEvent) => {
@@ -76,7 +101,7 @@ export default function LoginPage() {
           {mode === 'signin' ? (
             <>
               <h1 className="text-navy font-bold text-xl text-center mb-1">Welcome back</h1>
-              <p className="text-navy/45 text-sm text-center mb-7">Sign in to your agency dashboard</p>
+              <p className="text-navy/45 text-sm text-center mb-7">Sign in to your Zidny account</p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -88,6 +113,9 @@ export default function LoginPage() {
                     placeholder="you@example.com"
                     required
                     autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
 
@@ -100,6 +128,9 @@ export default function LoginPage() {
                     placeholder="••••••••"
                     required
                     autoComplete="current-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
 
