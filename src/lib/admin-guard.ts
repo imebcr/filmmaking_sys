@@ -56,10 +56,16 @@ export async function resolveProfileIdentity(request: Request): Promise<ProfileI
   if (token) {
     const supabaseAuth = createClient(supabaseUrl, anonKey)
     const { data, error } = await supabaseAuth.auth.getUser(token)
-    if (!error && data.user?.email) {
+    if (error) {
+      console.warn('[resolveProfileIdentity] Bearer token rejected by Supabase:', error.message)
+    } else if (!data.user?.email) {
+      console.warn('[resolveProfileIdentity] Supabase user has no email on file — cannot match an editors row.')
+    } else {
       const supabase = createServerSupabaseClient()
-      const { data: editor } = await supabase.from('editors').select('id').eq('email', data.user.email).eq('is_active', true).maybeSingle()
+      const { data: editor, error: lookupError } = await supabase.from('editors').select('id').eq('email', data.user.email).eq('is_active', true).maybeSingle()
+      if (lookupError) console.error(`[resolveProfileIdentity] editors lookup failed for ${data.user.email}:`, lookupError.message)
       if (editor) return { editorId: editor.id, isPureAdmin: true }
+      if (!lookupError) console.warn(`[resolveProfileIdentity] no active editors row found for admin email ${data.user.email} — ensure-commercial-identity should have created one.`)
     }
   }
 
@@ -74,6 +80,7 @@ export async function resolveProfileIdentity(request: Request): Promise<ProfileI
     const supabase = createServerSupabaseClient()
     const { data: editor } = await supabase.from('editors').select('id').eq('id', session.user.id).maybeSingle()
     if (editor) return { editorId: session.user.id, isPureAdmin: false }
+    console.warn(`[resolveProfileIdentity] NextAuth session id ${session.user.id} has no matching editors row — stale session after account delete/recreate?`)
     return null
   }
 

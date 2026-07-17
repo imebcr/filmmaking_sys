@@ -57,17 +57,22 @@ export default function MemberKanbanPage() {
                     <Link key={p.id} href={`/me/projects/${p.id}`}>
                       <motion.div
                         whileHover={{ y: -3, scale: 1.015 }}
-                        className={`glass-sm rounded-2xl p-3.5 ${p.isRejected ? 'border-l-4 border-l-red-400' : ''}`}
+                        className={`glass-sm rounded-2xl p-3.5 ${p.isRejected ? 'border-l-4 border-l-red-400' : p.isPendingReview ? 'border-l-4 border-l-amber-400' : ''}`}
                       >
                         <p className="text-navy font-semibold text-sm truncate mb-1.5">{p.client_name}</p>
-                        {p.project_type && (
-                          <span
-                            className="text-[9px] font-semibold rounded-full px-2 py-0.5 inline-block mb-1.5"
-                            style={{ background: p.project_type.color + '18', color: p.project_type.color, border: `1px solid ${p.project_type.color}35` }}
-                          >
-                            {p.project_type.name}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                          {p.project_type && (
+                            <span
+                              className="text-[9px] font-semibold rounded-full px-2 py-0.5"
+                              style={{ background: p.project_type.color + '18', color: p.project_type.color, border: `1px solid ${p.project_type.color}35` }}
+                            >
+                              {p.project_type.name}
+                            </span>
+                          )}
+                          {p.isPendingReview && (
+                            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200">En attente</span>
+                          )}
+                        </div>
                         {p.description && (
                           <p className="text-navy/50 text-[11px] mb-1.5 line-clamp-2">{p.description}</p>
                         )}

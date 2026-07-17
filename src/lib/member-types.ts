@@ -14,4 +14,5 @@ export interface MemberProjectListItem {
   project_type: { name: string; color: string } | null
   percentComplete: number
   isRejected: boolean
+  isPendingReview: boolean
 }

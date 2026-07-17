@@ -70,8 +70,7 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
   if (error || !project) return <div className="p-6 text-red-500 text-sm">{error ?? 'Projet introuvable.'}</div>
 
   const rejectedHistory = project.myDeliverables.filter((d) => d.status === 'rejected')
-  const currentStageDeliverable = project.myDeliverables.find((d) => d.stage === project.stage)
-  const canUpload = DELIVERABLE_STAGES.includes(project.stage) && (!currentStageDeliverable || currentStageDeliverable.status === 'rejected')
+  const pendingAtCurrentStage = project.myDeliverables.filter((d) => d.stage === project.stage && d.status === 'submitted')
 
   return (
     <div className="min-h-screen">
@@ -154,16 +153,20 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
           </section>
         )}
 
-        {/* Upload zone — no longer available once the project is Delivered */}
+        {/* Upload zone — no longer available once the project is Delivered. Members can submit
+            as many files as they need per stage; nothing gets overwritten, each becomes its
+            own version and every pending one is reviewed together by admin/commercial. */}
         {DELIVERABLE_STAGES.includes(project.stage) && (
         <section>
           <h2 className="text-navy font-semibold mb-3 flex items-center gap-2"><Upload size={15} /> Livrer un ou plusieurs fichiers</h2>
-          {!canUpload ? (
-            <div className="glass-sm rounded-2xl p-4 flex items-center gap-2 text-navy/50 text-sm">
-              <CheckCircle2 size={15} className="text-emerald-500" /> Livraison déjà soumise pour cette étape — en attente de validation.
+          {pendingAtCurrentStage.length > 0 && (
+            <div className="glass-sm rounded-2xl p-3 mb-3 flex items-center gap-2 text-navy/50 text-xs">
+              <CheckCircle2 size={14} className="text-amber-500 shrink-0" />
+              {pendingAtCurrentStage.length === 1 ? 'Une livraison est en attente de validation.' : `${pendingAtCurrentStage.length} livraisons sont en attente de validation.`}
+              {' '}Vous pouvez en envoyer d’autres si besoin.
             </div>
-          ) : (
-            <div className="glass-sm rounded-2xl p-4 space-y-3">
+          )}
+          <div className="glass-sm rounded-2xl p-4 space-y-3">
               <input
                 id="member-file-input"
                 type="file"
@@ -210,7 +213,6 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
                 {uploading ? `Envoi… ${progress}%` : files.length > 1 ? `Soumettre ${files.length} livrables` : 'Soumettre le livrable'}
               </motion.button>
             </div>
-          )}
         </section>
         )}
 

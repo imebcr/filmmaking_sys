@@ -23,7 +23,11 @@ export async function POST(request: Request) {
   const email = userData.user.email
 
   const supabase = createServerSupabaseClient()
-  const { data: existing } = await supabase.from('editors').select('*').eq('email', email).eq('is_active', true).maybeSingle()
+  const { data: existing, error: lookupError } = await supabase.from('editors').select('*').eq('email', email).eq('is_active', true).maybeSingle()
+  if (lookupError) {
+    console.error(`[ensure-commercial-identity] lookup failed for ${email}:`, lookupError.message)
+    return NextResponse.json({ error: 'Échec de la recherche.' }, { status: 500 })
+  }
 
   if (existing) {
     if (!(existing.roles ?? []).includes('commercial')) {
@@ -52,6 +56,9 @@ export async function POST(request: Request) {
     .select()
     .single()
 
-  if (createError || !created) return NextResponse.json({ error: 'Échec de la création.' }, { status: 500 })
+  if (createError || !created) {
+    console.error(`[ensure-commercial-identity] insert failed for ${email}:`, createError?.message ?? 'unknown error')
+    return NextResponse.json({ error: 'Échec de la création.' }, { status: 500 })
+  }
   return NextResponse.json({ editor: created })
 }

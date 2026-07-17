@@ -29,13 +29,15 @@ export async function GET() {
       .filter((d) => d.stage === p.stage && d.submitted_by === session.user.id)
       .sort((a, b) => b.version - a.version)
     const isRejected = ownStageDeliverables[0]?.status === 'rejected'
+    const isPendingReview = ownStageDeliverables[0]?.status === 'submitted'
 
     const { deliverables: _deliverables, ...rest } = p
-    return { ...rest, percentComplete, isRejected }
+    return { ...rest, percentComplete, isRejected, isPendingReview }
   })
 
   enriched.sort((a, b) => {
     if (a.isRejected !== b.isRejected) return a.isRejected ? -1 : 1
+    if (a.isPendingReview !== b.isPendingReview) return a.isPendingReview ? -1 : 1
     if (a.deadline && b.deadline) return a.deadline.localeCompare(b.deadline)
     if (a.deadline) return -1
     if (b.deadline) return 1

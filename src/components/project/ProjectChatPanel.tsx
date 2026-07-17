@@ -15,6 +15,17 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatDayLabel(iso: string): string {
+  const date = new Date(iso)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
+  if (sameDay(date, today)) return "Aujourd'hui"
+  if (sameDay(date, yesterday)) return 'Hier'
+  return date.toLocaleDateString('fr-DZ', { day: 'numeric', month: 'long', year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined })
+}
+
 // Renders "@Full Name" tokens in a message body as highlighted mentions.
 function renderBody(body: string, participants: Participant[]) {
   if (participants.length === 0) return body
@@ -103,15 +114,28 @@ export default function ProjectChatPanel({ projectId, participants }: { projectI
           {messages.length === 0 ? (
             <p className="text-navy/35 text-xs text-center py-6">Aucun message pour le moment.</p>
           ) : (
-            messages.map((m) => (
-              <div key={m.id} className="text-xs">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-navy font-semibold">{m.senderName}</span>
-                  <span className="text-navy/35 text-[10px]">{formatTime(m.createdAt)}</span>
+            messages.map((m, i) => {
+              const prev = messages[i - 1]
+              const showDayDivider = !prev || new Date(prev.createdAt).toDateString() !== new Date(m.createdAt).toDateString()
+              return (
+                <div key={m.id}>
+                  {showDayDivider && (
+                    <div className="flex items-center gap-2 my-2 first:mt-0">
+                      <div className="flex-1 h-px bg-navy/10" />
+                      <span className="text-navy/35 text-[10px] font-medium shrink-0">{formatDayLabel(m.createdAt)}</span>
+                      <div className="flex-1 h-px bg-navy/10" />
+                    </div>
+                  )}
+                  <div className="text-xs">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-navy font-semibold">{m.senderName}</span>
+                      <span className="text-navy/35 text-[10px]">{formatTime(m.createdAt)}</span>
+                    </div>
+                    <p className="text-navy/75 mt-0.5 break-words">{renderBody(m.body, participants)}</p>
+                  </div>
                 </div>
-                <p className="text-navy/75 mt-0.5 break-words">{renderBody(m.body, participants)}</p>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 

@@ -28,10 +28,12 @@ export default function MemberDashboardPage() {
   else rangeStart.setMonth(now.getMonth() - 1)
   const done = projects.filter((p) => p.stage === 'delivered' && new Date(p.updated_at) >= rangeStart)
 
-  // Three mutually-exclusive groups for the list below: rejected first, then everything
-  // else in progress, then completed projects tucked into their own checklist-style section.
+  // Mutually-exclusive groups for the list below: rejected first, then pending validation,
+  // then everything else in progress, then completed projects tucked into their own
+  // checklist-style section.
   const rejectedList = rejected
-  const activeList = projects.filter((p) => p.stage !== 'delivered' && !p.isRejected)
+  const pendingList = projects.filter((p) => p.stage !== 'delivered' && !p.isRejected && p.isPendingReview)
+  const activeList = projects.filter((p) => p.stage !== 'delivered' && !p.isRejected && !p.isPendingReview)
   const completedList = projects.filter((p) => p.stage === 'delivered')
 
   return (
@@ -97,6 +99,15 @@ export default function MemberDashboardPage() {
                 </section>
               )}
 
+              {pendingList.length > 0 && (
+                <section>
+                  <h2 className="text-navy font-semibold mb-3">En attente de validation</h2>
+                  <div className="space-y-2">
+                    {pendingList.map((p, i) => <ProjectRow key={p.id} p={p} delay={i * 0.03} />)}
+                  </div>
+                </section>
+              )}
+
               {activeList.length > 0 && (
                 <section>
                   <h2 className="text-navy font-semibold mb-3">En cours</h2>
@@ -140,7 +151,7 @@ function ProjectRow({ p, delay }: { p: MemberProjectListItem; delay: number }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }}>
       <Link href={`/me/projects/${p.id}`}>
-        <div className={`glass-sm rounded-2xl px-4 py-3 flex items-center gap-3 hover:bg-white/50 transition-colors ${p.isRejected ? 'border-l-4 border-l-red-400' : ''}`}>
+        <div className={`glass-sm rounded-2xl px-4 py-3 flex items-center gap-3 hover:bg-white/50 transition-colors ${p.isRejected ? 'border-l-4 border-l-red-400' : p.isPendingReview ? 'border-l-4 border-l-amber-400' : ''}`}>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-navy font-semibold text-sm">{p.client_name}</p>
@@ -151,6 +162,9 @@ function ProjectRow({ p, delay }: { p: MemberProjectListItem; delay: number }) {
               )}
               {p.isRejected && (
                 <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 bg-red-50 text-red-600 border border-red-200">Rejeté — à reprendre</span>
+              )}
+              {!p.isRejected && p.isPendingReview && (
+                <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200">En attente de validation</span>
               )}
             </div>
             {p.description && <p className="text-navy/50 text-xs mt-1 line-clamp-1">{p.description}</p>}
