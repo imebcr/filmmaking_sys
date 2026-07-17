@@ -8,6 +8,7 @@ import { STAGE_LABELS, DELIVERABLE_STAGES, STAKEHOLDER_LABELS } from '@/lib/type
 import { formatDate } from '@/lib/utils'
 import { useResumableUpload } from '@/lib/use-resumable-upload'
 import ProjectChatPanel from '@/components/project/ProjectChatPanel'
+import Modal from '@/components/ui/Modal'
 
 interface MemberProjectDetail {
   id: string
@@ -33,6 +34,7 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
   const [error, setError] = useState<string | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [notes, setNotes] = useState('')
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false)
   const { uploading, progress, currentFileIndex, totalFiles, error: uploadError, uploadMultiple } = useResumableUpload()
 
   const load = () => {
@@ -60,8 +62,20 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
     load()
   }
 
+  // Reopening the file picker natively replaces its selection rather than adding to it —
+  // append instead, so choosing files across several picker sessions doesn't silently drop
+  // whatever was already staged. Clearing the input's value afterwards lets re-picking the
+  // same file work too (browsers don't fire onChange again for an unchanged file list).
+  const handleFileSelect = (fileList: FileList | null, input: HTMLInputElement) => {
+    const picked = Array.from(fileList ?? [])
+    input.value = ''
+    if (picked.length === 0) return
+    setFiles((prev) => [...prev, ...picked.filter((p) => !prev.some((f) => f.name === p.name && f.size === p.size))])
+  }
+
   const handleUpload = async () => {
     if (files.length === 0 || !project) return
+    setConfirmingSubmit(false)
     const ok = await uploadMultiple({ projectId: id, stage: project.stage, files, notes })
     if (ok) { setFiles([]); setNotes(''); load() }
   }
@@ -172,7 +186,7 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
                 type="file"
                 multiple
                 hidden
-                onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                onChange={(e) => handleFileSelect(e.target.files, e.target)}
               />
               <label
                 htmlFor="member-file-input"
@@ -205,7 +219,7 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
                 <p className="flex items-center gap-1.5 text-red-500 text-xs"><AlertCircle size={12} /> {uploadError}</p>
               )}
               <motion.button
-                onClick={handleUpload}
+                onClick={() => setConfirmingSubmit(true)}
                 disabled={files.length === 0 || uploading}
                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                 className="w-full py-2 rounded-xl bg-brand hover:bg-ocean text-white text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
@@ -215,6 +229,36 @@ export default function MemberProjectDetailPage({ params }: { params: Promise<{ 
             </div>
         </section>
         )}
+
+        <Modal open={confirmingSubmit} onClose={() => setConfirmingSubmit(false)} title="Confirmer l'envoi" size="sm">
+          <div className="space-y-4">
+            <p className="text-navy/70 text-sm">
+              {files.length > 1
+                ? `Envoyer ces ${files.length} fichiers comme livrable pour l'étape ${project ? STAGE_LABELS[project.stage] : ''} ?`
+                : `Envoyer « ${files[0]?.name} » comme livrable pour l'étape ${project ? STAGE_LABELS[project.stage] : ''} ?`}
+            </p>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {files.map((f, i) => (
+                <p key={i} className="text-navy/50 text-xs truncate">• {f.name}</p>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmingSubmit(false)}
+                className="flex-1 py-2 rounded-xl border border-silver text-navy/50 hover:text-navy hover:bg-white/50 text-sm transition-colors"
+              >
+                Annuler
+              </button>
+              <motion.button
+                onClick={handleUpload}
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                className="flex-1 py-2 rounded-xl bg-brand hover:bg-ocean text-white text-sm font-semibold transition-colors"
+              >
+                Confirmer l'envoi
+              </motion.button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Rejection history */}
         {rejectedHistory.length > 0 && (
