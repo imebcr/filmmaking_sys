@@ -48,7 +48,7 @@ export default function MemberProfilePage() {
 
   const load = () => {
     setLoadError(false)
-    fetch('/api/member/profile').then((r) => r.json()).then((d) => {
+    fetch('/api/profile').then((r) => r.json()).then((d) => {
       if (!d.member) { setLoadError(true); return }
       const m: MemberProfile = d.member
       setProfile(m)
@@ -65,7 +65,7 @@ export default function MemberProfilePage() {
   const handleSaveProfile = async () => {
     setSaving(true)
     setMessage(null)
-    const res = await fetch('/api/member/profile', {
+    const res = await fetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -93,7 +93,7 @@ export default function MemberProfilePage() {
 
   const handleGenerateTelegramCode = async () => {
     setTelegramCodeError(null)
-    const res = await fetch('/api/member/telegram/generate-code', { method: 'POST' })
+    const res = await fetch('/api/profile/telegram/generate-code', { method: 'POST' })
     const result = await res.json().catch(() => ({}))
     if (res.ok) {
       setTelegramCode(result.code)
@@ -109,7 +109,7 @@ export default function MemberProfilePage() {
     setAvatarUploading(true)
     const form = new FormData()
     form.append('avatar', file)
-    const res = await fetch('/api/member/profile/avatar', { method: 'POST', body: form })
+    const res = await fetch('/api/profile/avatar', { method: 'POST', body: form })
     setAvatarUploading(false)
     if (res.ok) load()
   }

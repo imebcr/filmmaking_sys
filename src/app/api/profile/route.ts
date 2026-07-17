@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { resolveProfileIdentity } from '@/lib/admin-guard'
 import { createServerSupabaseClient } from '@/lib/server-supabase'
 
+// Deliberately NOT under /api/member/* — that whole prefix is middleware-gated to a
+// NextAuth team-member session, which an admin (Supabase Auth only) never has. This route
+// serves both, via resolveProfileIdentity's dual Bearer-token/session resolution.
 export async function GET(request: Request) {
   const identity = await resolveProfileIdentity(request)
   if (!identity) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })

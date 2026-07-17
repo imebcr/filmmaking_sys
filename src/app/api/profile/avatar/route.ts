@@ -9,6 +9,7 @@ const ALLOWED = { 'image/jpeg': 'jpg', 'image/png': 'png' } as const
 const MAX_BYTES = 5 * 1024 * 1024
 const AVATARS_DIR = path.join(path.dirname(DELIVERABLES_ROOT), 'avatars')
 
+// Deliberately NOT under /api/member/* — see src/app/api/profile/route.ts.
 export async function POST(request: Request) {
   const identity = await resolveProfileIdentity(request)
   if (!identity) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })

@@ -52,7 +52,7 @@ export default function AdminProfilePage() {
     // race AppLayout's own identical call on first-ever visit and 401 before the row is created.
     await adminFetch('/api/admin/ensure-commercial-identity', { method: 'POST' }).catch(() => {})
     try {
-      const d = await adminFetch('/api/member/profile').then((r) => r.json())
+      const d = await adminFetch('/api/profile').then((r) => r.json())
       if (!d.member) { setLoadError(true); return }
       const m: AdminProfile = d.member
       setProfile(m)
@@ -74,7 +74,7 @@ export default function AdminProfilePage() {
   const handleSaveProfile = async () => {
     setSaving(true)
     setMessage(null)
-    const res = await adminFetch('/api/member/profile', {
+    const res = await adminFetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -101,7 +101,7 @@ export default function AdminProfilePage() {
   }
 
   const handleGenerateTelegramCode = async () => {
-    const res = await adminFetch('/api/member/telegram/generate-code', { method: 'POST' })
+    const res = await adminFetch('/api/profile/telegram/generate-code', { method: 'POST' })
     const result = await res.json().catch(() => ({}))
     if (res.ok) setTelegramCode(result.code)
   }
@@ -111,7 +111,7 @@ export default function AdminProfilePage() {
     setAvatarUploading(true)
     const form = new FormData()
     form.append('avatar', file)
-    const res = await adminFetch('/api/member/profile/avatar', { method: 'POST', body: form })
+    const res = await adminFetch('/api/profile/avatar', { method: 'POST', body: form })
     setAvatarUploading(false)
     if (res.ok) load()
   }

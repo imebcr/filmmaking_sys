@@ -3,6 +3,7 @@ import { resolveProfileIdentity } from '@/lib/admin-guard'
 import { createServerSupabaseClient } from '@/lib/server-supabase'
 import { createSixCharacterCode, expiresAt } from '@/lib/member-security'
 
+// Deliberately NOT under /api/member/* — see src/app/api/profile/route.ts.
 export async function POST(request: Request) {
   const identity = await resolveProfileIdentity(request)
   if (!identity) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
