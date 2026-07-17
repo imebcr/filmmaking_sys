@@ -96,7 +96,7 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
       />
 
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 glass-nav">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {links.map(({ href, label, icon: Icon, exact }) => {
             const active = isActive(href, exact)
             return (
@@ -111,6 +111,14 @@ export default function MemberLayout({ children }: { children: React.ReactNode }
               </Link>
             )
           })}
+          {/* The desktop sidebar's "Déconnexion" button lives inside a `hidden lg:flex`
+              container, so it never existed on mobile at all. */}
+          <button type="button" onClick={() => setConfirmingLogout(true)} className="flex flex-col items-center gap-1 py-3 relative">
+            <div className="relative flex flex-col items-center gap-1 text-navy/45">
+              <LogOut size={18} />
+              <span className="text-[9px] font-medium">Déconnexion</span>
+            </div>
+          </button>
         </div>
       </nav>
 
