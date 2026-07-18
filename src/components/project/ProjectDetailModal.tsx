@@ -317,7 +317,12 @@ export default function ProjectDetailModal({ project, onClose, onSwitchProject, 
           <div className="space-y-3">
             {DELIVERABLE_STAGES.map((s) => (
               <div key={s}>
-                <Label>{STAGE_LABELS[s]}</Label>
+                <Label>
+                  {STAGE_LABELS[s]}
+                  {project.stage_deadlines?.[s] && (
+                    <span className="ml-2 font-normal text-navy/40 normal-case">— échéance {project.stage_deadlines[s]}</span>
+                  )}
+                </Label>
                 <textarea
                   value={stageRequirements[s] ?? ''}
                   onChange={(e) => setStageRequirements((sr) => ({ ...sr, [s]: e.target.value }))}

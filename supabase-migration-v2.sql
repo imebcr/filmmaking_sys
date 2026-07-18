@@ -186,4 +186,9 @@ ALTER TABLE editor_assignments DROP CONSTRAINT IF EXISTS editor_assignments_edit
 ALTER TABLE editor_assignments ADD CONSTRAINT editor_assignments_editor_id_fkey
   FOREIGN KEY (editor_id) REFERENCES editors(id) ON DELETE SET NULL;
 
+-- ─── projects — per-stage deadlines, set alongside team assignment ───────
+-- Keyed by stage ('pre-production' | 'shooting' | 'editing'), value is a yyyy-MM-dd string.
+-- Always kept on/before the project's own final deadline (enforced client-side when set).
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS stage_deadlines JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 -- ─── done ────────────────────────────────────────────────────

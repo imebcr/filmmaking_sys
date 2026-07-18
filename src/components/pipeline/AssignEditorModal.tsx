@@ -47,12 +47,19 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
       })
     : false
 
+  // The editing end date doubles as this stage's deadline — kept within the project's own
+  // final deadline, same rule as pre-production/shooting.
+  const deadlineExceeded = Boolean(project.deadline && endDt > new Date(project.deadline))
+
   const handleConfirm = async () => {
-    if (!editorId) return
+    if (!editorId || deadlineExceeded) return
     const editor = eligibleEditors.find((e) => e.id === editorId)
     setSaving(true)
     try {
-      await updateProject(project.id, { stage: 'editing' })
+      await updateProject(project.id, {
+        stage: 'editing',
+        stage_deadlines: { ...(project.stage_deadlines ?? {}), editing: format(endDt, 'yyyy-MM-dd') },
+      })
       await createAssignment({
         editor_id: editorId,
         editor_name: editor?.full_name ?? '',
@@ -142,6 +149,15 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
           </div>
         )}
 
+        {deadlineExceeded && (
+          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
+            <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
+            <p className="text-red-600 text-xs font-medium">
+              This end date is past the project's final deadline ({project.deadline?.slice(0, 10)}). Shorten the duration or move the start date earlier.
+            </p>
+          </div>
+        )}
+
         <div className="flex gap-2 pt-1">
           <button
             onClick={onClose}
@@ -151,7 +167,7 @@ export default function AssignEditorModal({ open, project, onClose, onConfirm }:
           </button>
           <motion.button
             onClick={handleConfirm}
-            disabled={!editorId || saving}
+            disabled={!editorId || saving || deadlineExceeded}
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
             className="flex-1 py-2 rounded-xl bg-brand hover:bg-ocean text-white text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
           >

@@ -87,6 +87,7 @@ export interface Project {
   client_name: string
   description: string
   stage_requirements: Record<string, string>
+  stage_deadlines: Record<string, string>
   client_phone: string
   client_email: string
   client_company: string

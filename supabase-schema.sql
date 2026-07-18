@@ -77,6 +77,7 @@ CREATE TABLE projects (
   client_name TEXT NOT NULL,
   description TEXT DEFAULT '',
   stage_requirements JSONB NOT NULL DEFAULT '{}'::jsonb,
+  stage_deadlines JSONB NOT NULL DEFAULT '{}'::jsonb,
   client_phone TEXT DEFAULT '',
   client_email TEXT DEFAULT '',
   client_company TEXT DEFAULT '',

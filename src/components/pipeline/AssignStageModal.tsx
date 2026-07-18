@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { AlertTriangle } from 'lucide-react'
 import type { Project, ProjectStage, Stakeholder, StakeholderRole, TeamMemberRole } from '@/lib/types'
 import { STAGE_LABELS, STAKEHOLDER_LABELS, ROLE_TO_STAKEHOLDER } from '@/lib/types'
 import { useApp } from '@/context/AppContext'
 import { syncAssignments } from '@/lib/sync-assignments'
 import Modal from '@/components/ui/Modal'
 import Select from '@/components/ui/Select'
+import DatePicker from '@/components/ui/DatePicker'
 
 interface Props {
   open: boolean
@@ -27,6 +29,7 @@ const STAGE_ROLES: Partial<Record<ProjectStage, TeamMemberRole[]>> = {
 export default function AssignStageModal({ open, project, targetStage, onClose, onConfirm }: Props) {
   const { editors, updateProject, saveStakeholders } = useApp()
   const [selections, setSelections] = useState<Record<string, string>>({})
+  const [stageDeadline, setStageDeadline] = useState('')
   const [saving, setSaving] = useState(false)
 
   const relevantRoles = targetStage ? STAGE_ROLES[targetStage] ?? [] : []
@@ -40,12 +43,18 @@ export default function AssignStageModal({ open, project, targetStage, onClose, 
       if (existing?.editor_id) initial[role] = existing.editor_id
     }
     setSelections(initial)
+    setStageDeadline(targetStage ? project.stage_deadlines?.[targetStage] ?? '' : '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, project?.id])
 
   if (!project || !targetStage) return null
 
+  // Kept within the project's own final deadline — there's no point promising a phase later
+  // than the whole project is due.
+  const deadlineExceeded = Boolean(stageDeadline && project.deadline && stageDeadline > project.deadline.slice(0, 10))
+
   const handleConfirm = async () => {
+    if (deadlineExceeded) return
     setSaving(true)
 
     // Merge: replace/add stakeholder rows for the roles this modal manages, keep every other role untouched.
@@ -61,7 +70,10 @@ export default function AssignStageModal({ open, project, targetStage, onClose, 
       updated.push({ role: ROLE_TO_STAKEHOLDER[role] as StakeholderRole, name: member.full_name, editor_id: member.id, cost: 0 })
     }
 
-    await updateProject(project.id, { stage: targetStage })
+    await updateProject(project.id, {
+      stage: targetStage,
+      stage_deadlines: { ...(project.stage_deadlines ?? {}), [targetStage]: stageDeadline || '' },
+    })
     await saveStakeholders(project.id, updated)
 
     const previousMemberIds = new Set(relevantRoles.map((r) => (project.stakeholders ?? []).find((s) => s.role === ROLE_TO_STAKEHOLDER[r])?.editor_id).filter(Boolean) as string[])
@@ -106,6 +118,19 @@ export default function AssignStageModal({ open, project, targetStage, onClose, 
           )
         })}
 
+        <div>
+          <label className="block text-navy/50 text-xs mb-1.5 font-medium">Échéance de cette étape (optionnel)</label>
+          <DatePicker value={stageDeadline} onChange={setStageDeadline} />
+          {project.deadline && (
+            <p className="text-navy/35 text-[11px] mt-1">Doit rester au plus tard le {project.deadline.slice(0, 10)} (échéance finale du projet).</p>
+          )}
+          {deadlineExceeded && (
+            <p className="flex items-center gap-1.5 text-red-500 text-[11px] mt-1 font-medium">
+              <AlertTriangle size={11} /> Cette date dépasse l’échéance finale du projet.
+            </p>
+          )}
+        </div>
+
         <div className="flex gap-2 pt-1">
           <button
             onClick={onClose}
@@ -115,7 +140,7 @@ export default function AssignStageModal({ open, project, targetStage, onClose, 
           </button>
           <motion.button
             onClick={handleConfirm}
-            disabled={!hasAnySelection || saving}
+            disabled={!hasAnySelection || saving || deadlineExceeded}
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
             className="flex-1 py-2 rounded-xl bg-brand hover:bg-ocean text-white text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-brand/25"
           >
