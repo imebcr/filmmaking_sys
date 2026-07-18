@@ -79,7 +79,9 @@ export default function MemberKanbanPage() {
                             </span>
                           )}
                           {p.isPendingReview && (
-                            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200">En attente</span>
+                            <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200">
+                              {key === 'pending' ? `En attente · ${STAGE_LABELS[p.stage]}` : 'En attente'}
+                            </span>
                           )}
                         </div>
                         {p.description && (
