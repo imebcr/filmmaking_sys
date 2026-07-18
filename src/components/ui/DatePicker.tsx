@@ -21,9 +21,14 @@ const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 // Drop-in replacement for a native <input type="date"> — the native calendar popup is
 // rendered by the OS/browser shadow DOM and can't be restyled with CSS at all. Renders
 // through a portal into document.body (see Select.tsx for why — same clipping issue).
+// Header + weekday row + 6 day rows + "Effacer" button, roughly — used to decide whether
+// the popover fits below the trigger or needs to open upward instead.
+const POPOVER_HEIGHT_ESTIMATE = 330
+const POPOVER_WIDTH = 260
+
 export default function DatePicker({ value, onChange, className = '', disabled }: Props) {
   const [open, setOpen] = useState(false)
-  const [rect, setRect] = useState<{ top: number; left: number } | null>(null)
+  const [rect, setRect] = useState<{ top?: number; bottom?: number; left: number } | null>(null)
   const selected = value && isValid(parseISO(value)) ? parseISO(value) : null
   const [viewMonth, setViewMonth] = useState(selected ?? new Date())
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -34,9 +39,19 @@ export default function DatePicker({ value, onChange, className = '', disabled }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
+  // Opens downward by default, but flips upward when there isn't room below (e.g. this
+  // field sits near the bottom of a modal) — otherwise the calendar grid gets cut off.
   const updatePosition = () => {
     const r = triggerRef.current?.getBoundingClientRect()
-    if (r) setRect({ top: r.bottom + 4, left: r.left })
+    if (!r) return
+    const spaceBelow = window.innerHeight - r.bottom
+    const openUpward = spaceBelow < POPOVER_HEIGHT_ESTIMATE && r.top > spaceBelow
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - POPOVER_WIDTH - 8)
+    setRect(
+      openUpward
+        ? { bottom: window.innerHeight - r.top + 4, left }
+        : { top: r.bottom + 4, left },
+    )
   }
 
   useLayoutEffect(() => {
@@ -93,7 +108,11 @@ export default function DatePicker({ value, onChange, className = '', disabled }
         <div
           ref={popoverRef}
           className="fixed z-[9999] rounded-2xl border border-white/65 p-3"
-          style={{ top: rect.top, left: rect.left, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(10,96,173,0.15)', width: 260 }}
+          style={{
+            top: rect.top, bottom: rect.bottom, left: rect.left, width: POPOVER_WIDTH,
+            background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+            boxShadow: '0 8px 32px rgba(10,96,173,0.15)',
+          }}
         >
           <div className="flex items-center justify-between mb-2">
             <button type="button" onClick={() => setViewMonth((m) => subMonths(m, 1))} className="p-1 rounded-lg hover:bg-brand/10 text-navy/50 hover:text-navy transition-colors">
